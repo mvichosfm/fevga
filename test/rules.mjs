@@ -243,6 +243,62 @@ ok(absOf(0, 24) === 23 && absOf(1, 24) === 11 && absOf(1, 13) === 0 && absOf(1, 
   ok(parseVbg(toVbg({ ...rec, resigned: true })).rec.result.resigned === undefined, 'a resigned flag cannot override a finished board');
 }
 
+// 11a. Mistake review: an Expert's own plays screen at zero loss; a random player's do not;
+//      reviewTurn measures the move actually played.
+{
+  const { screenTurns, reviewTurn } = await import('../src/engine.js');
+  const playGame = (lv0, seed) => {
+    let s = seed; const rnd = () => { s = (s * 1103515245 + 12345) >>> 0; return s / 4294967296; };
+    const g = newGame(), turns = []; let p = 0;
+    while (!winner(g) && turns.length < 600) {
+      const d = [1 + Math.floor(rnd() * 6), 1 + Math.floor(rnd() * 6)];
+      const steps = chooseMove(g, p, d, p === 0 ? lv0 : 4, rnd);
+      turns.push({ p, dice: d, steps: steps.map(({ r, t, d: die }) => ({ r, t, d: die })) });
+      applySteps(g, p, steps); p = 1 - p;
+    }
+    return turns;
+  };
+  const expert = screenTurns(playGame(5, 11), 0);
+  ok(expert.length > 5 && expert.every((x) => Math.abs(x.loss) < 1e-9), `Expert's plays screen at zero loss (${expert.length} turns)`);
+  ok(expert.every((x) => x.legal > 1), 'only turns with a choice are screened');
+  const turns = playGame(1, 7), rand = screenTurns(turns, 0);
+  ok(rand.some((x) => x.loss > 1) && rand.every((x) => x.loss >= -1e-9), 'a random player shows clear losses, never negative');
+  const worst = rand.sort((a, b) => b.loss - a.loss)[0];
+  const r = reviewTurn(turns, worst.i, { rollouts: 30, top: 2, seed: 1 });
+  const g0 = newGame(); for (let k = 0; k < worst.i; k++) applySteps(g0, turns[k].p, turns[k].steps);
+  const after = applySteps(cloneGame(g0), 0, turns[worst.i].steps);
+  const pAfter = applySteps(cloneGame(g0), 0, r.played.steps);
+  ok(after.pos[0].join() === pAfter.pos[0].join(), 'reviewTurn reports the move actually played');
+  ok(r.best.eq >= r.played.eq && r.cands[0] === r.best, 'reviewTurn ranks the best candidate first');
+}
+
+// 11c. Puzzles (src/puzzles.js, generated): every stored answer is legal through the interactive
+//      turn API, lands on its stored key, is among the accepted keys; the best wrong move is not
+//      accepted; the legal-play count and the >= 10-point gap hold; ids run 1..N.
+{
+  const { PUZZLES } = await import('../src/puzzles.js');
+  const { playKey } = await import('../src/engine.js');
+  const bad = [];
+  PUZZLES.forEach((q, n) => {
+    if (!q || q.id !== n + 1) { bad.push(`#${n + 1}: missing or misnumbered`); return; }
+    const g = { pos: [Int8Array.from(q.mine), Int8Array.from(q.opp)], off: [q.myOff, q.oppOff] };
+    const v = viewOf(g, 0);
+    try {
+      const T = createTurn(g, 0, q.dice);
+      for (const s of q.best) turnPlay(T, { r: s.r, d: s.d });
+      if (!turnDone(T)) bad.push(`#${q.id}: answer does not use every playable die`);
+      const key = Array.from(T.v.mine).join(',') + '|' + T.v.myOff;
+      if (key !== q.key || playKey(v, q.best) !== q.key) bad.push(`#${q.id}: answer lands elsewhere`);
+    } catch (e) { bad.push(`#${q.id}: answer is not legal (${e.message})`); }
+    if (!q.keys.includes(q.key)) bad.push(`#${q.id}: answer not among the accepted keys`);
+    if (q.keys.includes(playKey(v, q.second))) bad.push(`#${q.id}: the wrong move is accepted`);
+    if (finalPositions(v, expandDice(q.dice)).length !== q.legal) bad.push(`#${q.id}: legal count`);
+    if (q.win[0] - q.win[1] < 0.1 - 1e-9) bad.push(`#${q.id}: gap below 10 points`);
+    if (![1, 2, 3, 4].includes(q.tier)) bad.push(`#${q.id}: tier`);
+  });
+  ok(PUZZLES.length >= 12 && !bad.length, `${PUZZLES.length} puzzles valid${bad.length ? ': ' + bad.slice(0, 4).join('; ') : ''}`);
+}
+
 // 11b. .vbs settings files: round-trip, clamping of hostile values, refusal of other files
 {
   const { toVbs, parseVbs } = await import('../src/records.js');

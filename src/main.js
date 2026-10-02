@@ -4,8 +4,9 @@ import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
 import { RoundedBoxGeometry } from '../vendor/RoundedBoxGeometry.js';
 import {
   newGame, cloneGame, createTurn, turnSteps, turnPlay, turnDone, commitTurn, winner,
-  absOf, LEVELS, chooseMove, rollDice, applySteps, analyzeView, S,
+  absOf, LEVELS, chooseMove, rollDice, applySteps, analyzeView, S, screenTurns, reviewTurn, playKey, describePlay, positionFacts,
 } from './engine.js';
+import { PUZZLES } from './puzzles.js';
 import { aoTexture, ringTexture, triGlowTexture, dieTextures, boardShadowTexture } from './textures.js';
 import { THEMES, themeById, SURFACES, SURFACE_SIZE, makeSurface } from './themes.js';
 import { loadGames, storeGames, upsertRecent, saveNamed, renameSaved, deleteSaved, newId, stepsText, shown, resultText, fmtDate, MAX_SAVED, toVbg, parseVbg, vbgFileName, VBG_MAX_BYTES, toVbs, parseVbs, vbsFileName, VBS_MAX_BYTES } from './records.js';
@@ -590,6 +591,17 @@ function askMakis(view, rem, trap) {
   });
 }
 
+// Mistake review jobs (screenTurns / reviewTurn) on the worker, main thread as a fallback.
+function askReview(type, payload) {
+  return new Promise((res) => {
+    const local = () => res(type === 'screen' ? screenTurns(payload.turns, payload.side) : reviewTurn(payload.turns, payload.i, payload.opts));
+    if (!worker) return local();
+    const id = ++reqId;
+    pending.set(id, (a) => (a ? res(a) : local()));
+    worker.postMessage({ id, type, ...payload });
+  });
+}
+
 // ================================================================ game state
 const sound = new Sound();
 const store = {
@@ -760,14 +772,14 @@ function updateHud() {
   $('doneBtn').classList.toggle('ready', humanMove && !busy && T && turnDone(T));
   $('undoBtn').hidden = !humanMove;
   $('undoBtn').disabled = busy || !T || !T.played.length;
-  $('hintBtn').hidden = !humanMove;
+  $('hintBtn').hidden = !humanMove || !!puzzle; // a puzzle is solved without help
   $('hintBtn').disabled = busy || !T || turnDone(T);
-  $('makisBtn').hidden = !humanMove;
+  $('makisBtn').hidden = !humanMove || !!puzzle;
   $('makisBtn').disabled = busy || !T || turnDone(T) || !!makis;
   const resignOk = canResign();
   if (!resignOk) $('resignAsk').hidden = true;
   $('resignBtn').hidden = !resignOk || !$('resignAsk').hidden;
-  $('slamBtn').hidden = !(phase === 'human-roll' || phase === 'human-move' || phase === 'opening' || phase === 'over');
+  $('slamBtn').hidden = !!puzzle || !(phase === 'human-roll' || phase === 'human-move' || phase === 'opening' || phase === 'over');
   $('slamBtn').disabled = !canSlam();
   $('ovSlam').disabled = !canSlam();
   const noDouble = humanBorneOff();
@@ -794,6 +806,7 @@ function startGame() {
   flushAnims();
   busy = false; T = null; curDice = null; selected = -1; legal = []; dests = new Map(); hintPath = null;
   if (replay) closeReplayUi();
+  if (puzzle) { puzzle = null; $('puzzle').hidden = true; } // a new game replaces the borrowed one too
   closeMakis();
   if (matchOn && Math.max(...matchScore) >= MATCH_TO) { matchScore = [0, 0]; store.save(); } // finished match -> new one
   applySeat(seatColor);
@@ -831,10 +844,14 @@ async function startHumanTurn(d) {
   T = createTurn(g, HUMAN, curDice);
   busy = false;
   if (T.M === 0) {
-    phase = 'human-move'; updateHud();
+    // the turn passes by itself after a pause; busy keeps Done / Enter from ending it a second
+    // time meanwhile (that recorded the turn twice and then crashed on T = null)
+    const myT = T;
+    phase = 'human-move'; busy = true; updateHud();
     setStatus(`You rolled <b>${curDice[0]}–${curDice[1]}</b> — no legal move`);
     await wait(1.6);
-    if (my !== gid) return;
+    if (my !== gid || T !== myT || phase !== 'human-move') return;
+    busy = false;
     return endHumanTurn();
   }
   phase = 'human-move';
@@ -930,6 +947,7 @@ async function undo() {
 
 async function done() {
   if (busy || phase !== 'human-move' || !T || !turnDone(T)) return;
+  if (puzzle) return puzzleCheck(); // a puzzle's Done checks the answer instead of ending a turn
   endHumanTurn();
 }
 
@@ -1037,7 +1055,7 @@ function finishGame(side, points, resigned = false) {
 // ---------------------------------------------------------------- admit loss
 // Main-screen button: the human concedes, choosing a single (1 point) or double (2 points) loss.
 // Allowed whenever it is the human's turn (or before the first roll); confirmed inline.
-const canResign = () => !busy && (phase === 'human-roll' || phase === 'human-move' || phase === 'opening');
+const canResign = () => !busy && !puzzle && (phase === 'human-roll' || phase === 'human-move' || phase === 'opening');
 // Once the human has a checker off (committed, or earlier in the turn being played) a mars is
 // impossible, so a double loss is no longer offered.
 const humanBorneOff = () => !!g && (g.off[HUMAN] > 0 || (!!T && T.p === HUMAN && T.v.myOff > 0));
@@ -1062,7 +1080,7 @@ $('resignDouble').onclick = () => resign(2);
 // never touched: no state changes, no record entry. Allowed on the human's turn and at game over.
 let slamming = false, shakeT = 0;
 const SHAKE = 0.55;
-const canSlam = () => !slamming && !busy && (phase === 'human-roll' || phase === 'human-move' || phase === 'opening' || phase === 'over');
+const canSlam = () => !slamming && !busy && !puzzle && (phase === 'human-roll' || phase === 'human-move' || phase === 'opening' || phase === 'over');
 const reducedMotion = () => window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // Where something falling at stage (x, z) comes to rest once the board is shut: on the closed
@@ -1210,6 +1228,7 @@ $('slamBtn').onclick = slam;
 $('ovSlam').onclick = slam;
 
 async function hint() {
+  if (puzzle) return; // a puzzle is solved without help
   if (busy || phase !== 'human-move' || !T || turnDone(T) || T.played.length) {
     if (T && T.played.length && !turnDone(T)) toast('Hints are available at the start of your move — undo first');
     return;
@@ -1300,7 +1319,7 @@ function renderMakis(a, diceText) {
 function closeMakis() { makis = null; $('makis').hidden = true; }
 
 async function makisDemo() {
-  if (busy || phase !== 'human-move' || !T || turnDone(T) || makis) return;
+  if (busy || phase !== 'human-move' || !T || turnDone(T) || makis || puzzle) return;
   const my = gid;
   busy = true; selected = -1; hintPath = null; clearMarks(); updateHud();
   setStatus('Mr. Makis is studying the position<span class="dots"></span>');
@@ -1422,6 +1441,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 's' || e.key === 'S') slam();
   else if (e.key === '[') setLight(lightLevel - 0.1);
   else if (e.key === ']') setLight(lightLevel + 0.1);
+  else if (e.key === 'Escape' && puzzle && $('rules').classList.contains('hidden') && $('settings').classList.contains('hidden')) exitPuzzle();
   else if (e.key === 'Escape') { select(-1); $('rules').classList.add('hidden'); $('settings').classList.add('hidden'); }
 });
 
@@ -1514,15 +1534,12 @@ function restDice() {
 function enterReplay(rec) {
   if (busy || phase === 'cpu' || phase === 'loading') { toast('Wait for the computer to finish its move, then try again'); return; }
   if (replay) exitReplay();
+  if (puzzle) exitPuzzle(); // give the live game back first, so replay borrows the real one
   $('games').classList.add('hidden');
   closeMakis();
   gid++;            // aborts any pending live timers (auto-end, opening pause); state is restored on exit
   flushAnims();
-  replay = {
-    rec, idx: 0, pos: newGame(), playing: false, busy: false,
-    live: { g: cloneGame(g), phase, curDice: curDice && curDice.slice(), turnStart: turnStart && cloneGame(turnStart),
-      played: T && phase === 'human-move' ? T.played.slice() : null, status: $('status').innerHTML },
-  };
+  replay = { rec, idx: 0, pos: newGame(), playing: false, busy: false, live: snapshotLive() };
   phase = 'replay'; selected = -1; hintPath = null; clearMarks();
   applySeat(rec.human);
   $('bar').hidden = true; $('replayBar').hidden = false; $('overlay').classList.add('hidden');
@@ -1535,7 +1552,7 @@ function replayJump(n) {
   if (!replay || replay.busy) return;
   const rec = replay.rec;
   n = Math.max(0, Math.min(rec.turns.length, n));
-  replay.idx = n;
+  replay.idx = n; replay.whatIf = false;
   replay.pos = replayPosition(rec, n);
   layoutCheckers(replay.pos, false);
   if (n > 0) placeDice(rec.turns[n - 1].dice, rec.turns[n - 1].p); else restDice();
@@ -1545,6 +1562,7 @@ function replayJump(n) {
 async function replayStep() {
   if (!replay || replay.busy || replay.idx >= replay.rec.turns.length) return;
   const R = replay, turn = R.rec.turns[R.idx];
+  if (R.whatIf) { R.whatIf = false; layoutCheckers(R.pos, false); } // a review what-if is on the board: put the record back
   R.busy = true; updateReplayUi();
   sound.shake();
   await Promise.all([throwDie(0, turn.dice[0], turn.p, 0), throwDie(1, turn.dice[1], turn.p, 1, 0.06)]);
@@ -1587,7 +1605,9 @@ function updateRound() {
   if (el.hidden !== !showRound) { el.hidden = !showRound; positionHud(); }
   if (!showRound) return;
   let n, sub;
-  if (replay) {
+  if (puzzle) {
+    n = puzzle.q.round; sub = `puzzle ${puzzle.q.id}`;
+  } else if (replay) {
     const k = replay.idx, N = replay.rec.turns.length;
     n = Math.max(1, Math.ceil(k / 2));
     sub = `replay · move ${k} of ${N}`;
@@ -1621,7 +1641,14 @@ function updateReplayUi() {
 function closeReplayUi() {
   if (replay) replay.playing = false;
   replay = null;
+  reviewRun++; $('review').hidden = true; // a review belongs to its replay
   $('replayBar').hidden = true; $('bar').hidden = false;
+}
+
+// The live game, mid-move included, so replay and puzzles can borrow the board and give it back.
+function snapshotLive() {
+  return { g: cloneGame(g), phase, curDice: curDice && curDice.slice(), turnStart: turnStart && cloneGame(turnStart),
+    played: T && phase === 'human-move' ? T.played.slice() : null, status: $('status').innerHTML };
 }
 
 // Leaves the replay and puts the live game back exactly as it was, mid-move included.
@@ -1630,6 +1657,9 @@ function exitReplay() {
   const L = replay.live;
   gid++; flushAnims();
   closeReplayUi();
+  restoreLive(L);
+}
+function restoreLive(L) {
   applySeat(seatColor);
   g = L.g; phase = L.phase; curDice = L.curDice; turnStart = L.turnStart; T = null; busy = false;
   if (phase === 'human-move' && L.played && turnStart) {
@@ -1647,6 +1677,281 @@ function exitReplay() {
     updateHud();
   }
 }
+
+// ================================================================ mistake review
+// Mr. Makis reviews a recorded game for the human's costliest plays. Stage 1 screens every turn
+// with a choice two-ply (engine.screenTurns, ~1 s a game); stage 2 plays the worst REVIEW.check
+// of them out REVIEW.rollouts times against his best two plays with the same dice
+// (engine.reviewTurn, ~2 s each); the REVIEW.show that cost most are listed, each one click from
+// the position in replay. Two-ply alone misjudged some plays in testing (a "0.10 worse" move lost
+// 17 points of win chance in play-outs), so the ranking is always by play-outs. The result is
+// kept on the stored record (rec.review), so a second look is instant.
+const REVIEW = { check: 6, rollouts: 120, top: 2, show: 3, minScreen: 0.25, minWin: 0.03 };
+let reviewRun = 0; // bumps to abandon a review in progress (exit replay, a new one)
+
+const findStored = (id) => gamesDb.recent.find((r) => r.id === id) || gamesDb.saved.find((r) => r.id === id);
+const roundOf = (i) => Math.floor(i / 2) + 1;
+const pct = (x) => `${Math.round(x * 100)}%`;
+
+// On phones the panel sits above the replay bar, whose height depends on how its title wraps.
+function placeReview() {
+  const el = $('review');
+  el.style.bottom = '';
+  if (el.hidden || window.innerWidth > 700 || $('replayBar').hidden) return;
+  el.style.bottom = `${Math.round(window.innerHeight - $('replayBar').getBoundingClientRect().top + 8)}px`;
+}
+window.addEventListener('resize', placeReview);
+
+async function startReview(rec) {
+  if (!replay || replay.rec !== rec) return;
+  const run = ++reviewRun;
+  $('review').hidden = false;
+  placeReview();
+  if (rec.review && rec.review.v === 1) { renderReview(rec); return; }
+  const side = rec.human;
+  const body = (h) => { if (run === reviewRun) $('reviewBody').innerHTML = h; };
+  body(`<p>Mr. Makis is going through the game<span class="dots"></span></p><p class="mk-foot">Scoring every move with a choice, two rolls deep…</p>`);
+  const screened = await askReview('screen', { turns: rec.turns, side });
+  if (run !== reviewRun) return;
+  const worst = screened.filter((x) => x.loss >= REVIEW.minScreen).sort((a, b) => b.loss - a.loss).slice(0, REVIEW.check);
+  const found = [];
+  for (let k = 0; k < worst.length; k++) {
+    body(`<p>Mr. Makis is going through the game<span class="dots"></span></p>
+      <p class="mk-foot">${screened.length} moves had a choice. Playing out the ${worst.length} most doubtful ones to the end — ${k + 1} of ${worst.length}…</p>`);
+    const r = await askReview('review', { turns: rec.turns, i: worst[k].i, opts: { rollouts: REVIEW.rollouts, top: REVIEW.top, seed: 1 } });
+    if (run !== reviewRun) return;
+    if (r.best.win - r.played.win >= REVIEW.minWin && r.best.eq > r.played.eq) found.push(r);
+  }
+  // ranked by the number each card shows (win chance lost); points lost (mars risk) breaks ties
+  found.sort((a, b) => ((b.best.win - b.played.win) - (a.best.win - a.played.win)) || ((b.best.eq - b.played.eq) - (a.best.eq - a.played.eq)));
+  rec.review = {
+    v: 1, at: Date.now(), checked: screened.length, played: worst.length, rollouts: REVIEW.rollouts,
+    mistakes: found.slice(0, REVIEW.show).map((r) => ({
+      i: r.i, dice: r.dice, played: r.played.steps, best: r.best.steps,
+      winPlayed: r.played.win, winBest: r.best.win, eqPlayed: r.played.eq, eqBest: r.best.eq,
+      why: makisWhyWorse(r.best, r.played),
+      plus: makisReasons({ base: r.base }, r.best).find((s) => !/^Race count|^The checkers have passed/.test(s)) || '',
+    })),
+  };
+  storeGames(gamesDb);
+  if (run === reviewRun) renderReview(rec);
+}
+
+function renderReview(rec) {
+  const R = rec.review, who = rec.imported ? 'The player' : 'You', your = rec.imported ? 'The player’s' : 'Your';
+  let h;
+  if (!R.mistakes.length) {
+    h = `<p class="mk-move">No clear mistakes.</p><p>Every move ${who === 'You' ? 'you' : 'the player'} made was within ${pct(REVIEW.minWin)} win chance of Mr. Makis's best — well played.</p>`;
+  } else {
+    h = `<p>${R.mistakes.length === 1 ? 'The move' : `The ${R.mistakes.length} moves`} that cost most:</p>`;
+    R.mistakes.forEach((m, k) => {
+      const lost = m.winBest - m.winPlayed, dice = m.dice[0] === m.dice[1] ? `double ${m.dice[0]}s` : `${m.dice[0]}–${m.dice[1]}`;
+      h += `<div class="rv-card" data-k="${k}">
+        <div class="rv-top"><b>Round ${roundOf(m.i)}</b> · ${dice}<span class="rv-loss">−${Math.round(lost * 100)}% win chance</span></div>
+        <div>${who} played <b>${stepsText(m.played)}</b> → wins ${pct(m.winPlayed)}</div>
+        <div>Mr. Makis: <b>${stepsText(m.best)}</b> → wins ${pct(m.winBest)}</div>
+        <div class="rv-why">${your} move ${m.why}.${m.plus ? ` His: ${m.plus.charAt(0).toLowerCase()}${m.plus.slice(1)}` : ''}</div>
+        <div class="rv-btns"><button data-act="pos">Position</button><button data-act="mine">${rec.imported ? 'Their' : 'Your'} move</button><button data-act="best" class="primary">His move</button></div>
+      </div>`;
+    });
+  }
+  h += `<p class="mk-foot">${R.checked} moves had a choice; he scored them all two rolls deep and played the ${R.played} most doubtful to the end ${R.rollouts} times each with the same dice. Win chances are estimates (about ±5%).</p>`;
+  $('reviewBody').innerHTML = h;
+}
+
+// Position before mistake k, with that turn's dice on the table.
+function reviewShow(k) {
+  const m = replay && replay.rec.review && replay.rec.review.mistakes[k];
+  if (!m || replay.busy) return null;
+  replay.playing = false;
+  replayJump(m.i);
+  const t = replay.rec.turns[m.i];
+  placeDice(t.dice, t.p);
+  $('replayMove').textContent = `Round ${roundOf(m.i)} · ${t.dice[0]}–${t.dice[1]} to play`;
+  return m;
+}
+async function reviewPlay(k, which) {
+  const m = reviewShow(k);
+  if (!m) return;
+  if (which === 'mine') { await replayStep(); return; }
+  // Mr. Makis's move: a what-if on the replay board; any replay control puts the record back
+  const R = replay, t = R.rec.turns[m.i];
+  R.busy = true; updateReplayUi();
+  $('replayMove').textContent = `What if: Mr. Makis plays ${stepsText(m.best)}`;
+  for (const s of m.best) {
+    if (replay !== R) return;
+    await moveChecker(t.p, absOf(t.p, s.r), s.t ? absOf(t.p, s.t) : -1);
+    await wait(0.06);
+  }
+  if (replay !== R) return;
+  R.busy = false; R.whatIf = true; updateReplayUi();
+  $('replayMove').textContent = `What if: Mr. Makis plays ${stepsText(m.best)} (wins ${pct(m.winBest)} instead of ${pct(m.winPlayed)})`;
+}
+function closeReview() { reviewRun++; $('review').hidden = true; }
+
+$('reviewBody').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-act]'), card = e.target.closest('.rv-card');
+  if (!b || !card) return;
+  const k = +card.dataset.k;
+  // phones: the panel covers the board, so step aside (Mistakes reopens it instantly from the cache)
+  if (window.innerWidth <= 700) $('review').hidden = true;
+  if (b.dataset.act === 'pos') reviewShow(k);
+  else reviewPlay(k, b.dataset.act);
+});
+$('reviewClose').onclick = closeReview;
+$('rpReview').onclick = () => { if (!replay) return; if ($('review').hidden) startReview(replay.rec); else closeReview(); };
+// game-over card: open the finished game in replay with the review running
+$('ovReview').onclick = () => {
+  const rec = record && findStored(record.id);
+  if (!rec) return;
+  enterReplay(rec);
+  startReview(rec);
+};
+
+// ================================================================ puzzles
+// "Find the best move" positions from src/puzzles.js (generated by test/make-puzzles.mjs: every
+// answer confirmed by Mr. Makis's play-outs to beat the best wrong move by >= 10 points of win
+// chance; moves within 3 points of his are all accepted). The live game is borrowed like replay
+// borrows it: snapshotLive() on the way in, restoreLive() on the way out. During a puzzle the
+// normal turn machinery runs (phase 'human-move', T, undo), Done checks the answer instead of
+// ending a turn, and phase 'puzzle' freezes the board between attempts.
+const TIERS = {
+  1: { name: 'Easy', note: 'The Intermediate computer already finds these.' },
+  2: { name: 'Medium', note: 'Only the Advanced computer finds these.' },
+  3: { name: 'Hard', note: 'Only the Expert, looking two rolls ahead, finds these.' },
+  4: { name: 'Master', note: 'Every computer level misses these; only Mr. Makis\'s play-outs show the answer.' },
+};
+const PZ_KEY = 'fevga.puzzles.v1';
+let pzProgress = (() => { try { const p = JSON.parse(localStorage.getItem(PZ_KEY)); return p && typeof p === 'object' ? p : {}; } catch { return {}; } })();
+const savePz = () => { try { localStorage.setItem(PZ_KEY, JSON.stringify(pzProgress)); } catch { /* private mode */ } };
+let puzzle = null; // { q, live, tries }
+
+// the puzzle's position with the human's seat on the side to move (its view is in its own numbering)
+function puzzleGame(q) {
+  const mine = Int8Array.from(q.mine), opp = Int8Array.from(q.opp);
+  return { pos: HUMAN === 0 ? [mine, opp] : [opp, mine], off: HUMAN === 0 ? [q.myOff, q.oppOff] : [q.oppOff, q.myOff] };
+}
+const pzView = (q) => ({ mine: Int8Array.from(q.mine), opp: Int8Array.from(q.opp), myOff: q.myOff, oppOff: q.oppOff });
+const pzPath = (steps) => steps.map((s) => ({ ...s, from: absOf(HUMAN, s.r), to: s.t ? absOf(HUMAN, s.t) : -1 }));
+const diceWords = (d) => (d[0] === d[1] ? `double ${d[0]}s` : `${d[0]}–${d[1]}`);
+
+function enterPuzzle(q) {
+  if (!puzzle && (busy || phase === 'cpu' || phase === 'loading')) { toast('Wait for the computer to finish its move, then try again'); return; }
+  if (replay) exitReplay();
+  $('puzzles').classList.add('hidden'); $('games').classList.add('hidden');
+  closeMakis();
+  const live = puzzle ? puzzle.live : snapshotLive();
+  gid++; flushAnims();
+  puzzle = { q, live, tries: 0 };
+  $('puzzle').hidden = false;
+  $('pzTitle').textContent = `Puzzle ${q.id}`;
+  $('pzSub').textContent = `${TIERS[q.tier].name} · ${q.theme}`;
+  puzzleStart(true);
+}
+
+// (Re)sets the puzzle position and hands the move to the player.
+function puzzleStart(drop) {
+  const q = puzzle.q;
+  g = puzzleGame(q); turnStart = cloneGame(g); curDice = q.dice.slice();
+  T = createTurn(g, HUMAN, curDice);
+  phase = 'human-move'; busy = false; selected = -1; hintPath = null;
+  layoutCheckers(g, drop);
+  placeDice(curDice, HUMAN);
+  $('pzBody').innerHTML = `<p>Round ${q.round}. You rolled <b>${diceWords(q.dice)}</b>. Find the best of the ${q.legal} legal plays.</p>
+    <p class="mk-foot">Play it on the board, then press <b>Done</b>. Undo works as usual.</p>`;
+  $('pzBtns').innerHTML = `<button data-act="next">Skip</button>`;
+  beginHumanStep();
+}
+
+function puzzleCheck() {
+  const q = puzzle.q, v = pzView(q);
+  const played = T.played.map(({ r, t, d }) => ({ r, t, d }));
+  const key = playKey(v, played), right = q.keys.includes(key);
+  puzzle.tries++;
+  const prev = pzProgress[q.id] || {};
+  pzProgress[q.id] = { solved: prev.solved || right, first: prev.first ?? (right && puzzle.tries === 1), tries: (prev.tries || 0) + 1 };
+  savePz();
+  phase = 'puzzle'; selected = -1; clearMarks();
+  const best = describePlay(v, q.best), mine = describePlay(v, played);
+  const why = makisReasons({ base: positionFacts(v) }, best).filter((s) => !/^Race count|^The checkers have passed/.test(s)).slice(0, 2);
+  let h;
+  if (right) {
+    const same = key === q.key;
+    h = `<p class="pz-ok">✓ Correct${puzzle.tries === 1 ? ' — first try' : ''}.</p>
+      <p>${same ? 'That is Mr. Makis\'s move' : `Equally good as Mr. Makis's own <b>${stepsText(q.best)}</b>`}: it wins about <b>${pct(q.win[0])}</b> of his play-outs. The best move outside the right answers, <b>${stepsText(q.second)}</b>, wins only ${pct(q.win[1])}.</p>`;
+  } else {
+    const isSecond = key === playKey(v, q.second);
+    h = `<p class="pz-no">Not the best.</p>
+      <p>Your <b>${stepsText(played)}</b> ${makisWhyWorse(best, mine)}${isSecond ? ` — it wins about ${pct(q.win[1])}` : ''}. Mr. Makis plays <b>${stepsText(q.best)}</b> and wins about <b>${pct(q.win[0])}</b>.</p>`;
+  }
+  if (why.length) h += `<div class="mk-h">Why his move</div><ul>${why.map((s) => `<li>${s}</li>`).join('')}</ul>`;
+  h += `<p class="mk-foot">Win chances from ${q.rollouts} play-outs per move with the same dice (about ±3%).</p>`;
+  $('pzBody').innerHTML = h;
+  $('pzBtns').innerHTML = `${right ? '' : '<button data-act="retry">Try again</button>'}<button data-act="show">${right ? 'See his move' : 'Show his move'}</button><button data-act="next" class="primary">Next puzzle</button>`;
+  setStatus(right ? 'Puzzle solved' : 'Not quite — try again, or see Mr. Makis\'s move');
+  sound[right ? 'win' : 'nope']();
+  updateHud();
+}
+
+async function puzzleShow() {
+  const p = puzzle;
+  puzzleStart(false);
+  $('pzBtns').innerHTML = '';
+  await playPath(pzPath(p.q.best));
+  if (puzzle !== p) return;
+  phase = 'puzzle'; clearMarks();
+  setStatus(`Mr. Makis plays <b>${stepsText(p.q.best)}</b>`);
+  $('pzBtns').innerHTML = `<button data-act="retry">Try it yourself</button><button data-act="next" class="primary">Next puzzle</button>`;
+  updateHud();
+}
+
+// next unsolved puzzle after the current one (wrapping), else simply the next one
+function nextPuzzle() {
+  const i = PUZZLES.findIndex((q) => q === puzzle.q);
+  const order = [...PUZZLES.slice(i + 1), ...PUZZLES.slice(0, i + 1)];
+  enterPuzzle(order.find((q) => !(pzProgress[q.id] || {}).solved) || order[0]);
+}
+
+function exitPuzzle() {
+  if (!puzzle) return;
+  const L = puzzle.live;
+  puzzle = null;
+  $('puzzle').hidden = true;
+  gid++; flushAnims();
+  restoreLive(L);
+}
+
+$('pzBtns').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-act]');
+  if (!b || !puzzle || busy) return;
+  if (b.dataset.act === 'retry') puzzleStart(false);
+  else if (b.dataset.act === 'show') puzzleShow();
+  else if (b.dataset.act === 'next') nextPuzzle();
+});
+$('pzExit').onclick = exitPuzzle;
+
+function renderPuzzles() {
+  const solved = PUZZLES.filter((q) => (pzProgress[q.id] || {}).solved).length;
+  let h = `<p>Positions from computer games where one move is clearly best — confirmed by Mr. Makis playing each candidate to the end hundreds of times. <b>${solved} of ${PUZZLES.length}</b> solved.</p>`;
+  for (const t of [1, 2, 3, 4]) {
+    const qs = PUZZLES.filter((q) => q.tier === t);
+    if (!qs.length) continue;
+    h += `<h3>${TIERS[t].name}</h3><p class="tier-note">${TIERS[t].note}</p><div class="pz-grid">`;
+    for (const q of qs) {
+      const p = pzProgress[q.id] || {};
+      const cls = p.solved ? 'solved' : p.tries ? 'missed' : '';
+      h += `<button class="pz-tile ${cls}" data-id="${q.id}">${p.solved ? '✓ ' : ''}Puzzle ${q.id}<small>${q.theme} · ${diceWords(q.dice)}</small></button>`;
+    }
+    h += '</div>';
+  }
+  $('puzzlesBody').innerHTML = h;
+}
+$('puzzlesBody').addEventListener('click', (e) => {
+  const b = e.target.closest('.pz-tile');
+  if (b) enterPuzzle(PUZZLES.find((q) => q.id === +b.dataset.id));
+});
+$('puzzlesBtn').onclick = () => { renderPuzzles(); $('puzzles').classList.remove('hidden'); };
+$('closePuzzles').onclick = () => $('puzzles').classList.add('hidden');
 
 // ================================================================ games sheet (recent + saved)
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));

@@ -1,6 +1,6 @@
-// Runs the computer player and Mr. Makis's analysis off the main thread so the 3D scene never
-// stutters while they think.
-import { chooseMove, analyzeView } from './engine.js';
+// Runs the computer player, Mr. Makis's analysis and the mistake review off the main thread so
+// the 3D scene never stutters while they think.
+import { chooseMove, analyzeView, screenTurns, reviewTurn } from './engine.js';
 
 self.onmessage = (e) => {
   const { id, type } = e.data;
@@ -10,6 +10,8 @@ self.onmessage = (e) => {
     self.postMessage({ id, analysis: analyzeView(v, rem, opts) });
     return;
   }
+  if (type === 'screen') { self.postMessage({ id, analysis: screenTurns(e.data.turns, e.data.side) }); return; }
+  if (type === 'review') { self.postMessage({ id, analysis: reviewTurn(e.data.turns, e.data.i, e.data.opts) }); return; }
   const { g, p, dice, level } = e.data;
   const game = { pos: [Int8Array.from(g.pos[0]), Int8Array.from(g.pos[1])], off: g.off.slice() };
   const steps = chooseMove(game, p, dice, level);

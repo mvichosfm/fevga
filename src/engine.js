@@ -504,25 +504,87 @@ export function analyzeView(v, rem, { top = 4, rollouts = 40, seed = 1, trap } =
   const pre = finals.map((f) => ({ f, s: evaluate(leafView(v, f), W) })).sort((x, y) => y.s - x.s).slice(0, 30);
   for (const c of pre) c.ply2 = replyValue(v, c.f, W);
   pre.sort((x, y) => y.ply2 - x.ply2);
-  const cands = pre.slice(0, finals.length === 1 ? 1 : top).map((c) => {
-    const lv = leafView(v, c.f);
-    let eq = 0, wins = 0;
-    if (finals.length > 1) {
-      for (let i = 0; i < rollouts; i++) {
-        const r = rollout(lv, mulberry(seed * 7919 + i)); // common random numbers across candidates
-        eq += r; if (r > 0) wins++;
-      }
-    }
-    const facts = positionFacts(lv, W);
-    const newPts = [], vacated = [];
-    for (let r = 1; r <= 24; r++) {
-      if (!v.mine[r] && c.f.mine[r]) newPts.push({ r, ...blockReach(lv, r) });
-      if (v.mine[r] && !c.f.mine[r]) vacated.push({ r, ...blockReach(v, r) });
-    }
-    return { steps: c.f.steps, ply2: c.ply2, eq: finals.length > 1 ? eq / rollouts : null, win: finals.length > 1 ? wins / rollouts : null, facts, newPts, vacated };
-  });
+  const cands = pre.slice(0, finals.length === 1 ? 1 : top).map((c) => candidate(v, c.f, c.ply2, finals.length > 1 ? rollouts : 0, seed));
   if (finals.length > 1) cands.sort((x, y) => (y.eq - x.eq) || (y.ply2 - x.ply2));
   return { base, cands, legal: finals.length, rollouts, considered: pre.length };
+}
+
+// One analysed play: `rollouts` play-outs (seeded per index, so every candidate of a position
+// sees the same dice) plus the facts the coach's explanations quote. rollouts 0 = no play-outs.
+function candidate(v, f, ply2, rollouts, seed, W = WEIGHTS.tuned) {
+  const lv = leafView(v, f);
+  let eq = 0, wins = 0;
+  for (let i = 0; i < rollouts; i++) {
+    const r = rollout(lv, mulberry(seed * 7919 + i)); // common random numbers across candidates
+    eq += r; if (r > 0) wins++;
+  }
+  const facts = positionFacts(lv, W);
+  const newPts = [], vacated = [];
+  for (let r = 1; r <= 24; r++) {
+    if (!v.mine[r] && f.mine[r]) newPts.push({ r, ...blockReach(lv, r) });
+    if (v.mine[r] && !f.mine[r]) vacated.push({ r, ...blockReach(v, r) });
+  }
+  return { steps: f.steps, ply2, eq: rollouts ? eq / rollouts : null, win: rollouts ? wins / rollouts : null, facts, newPts, vacated };
+}
+
+// ------------------------------------------------------------------ mistake review
+// Reviews the plays `side` made in a recorded game (turns = [{p, dice, steps}], as in records.js).
+// Step 1, screenTurns (fast, ~10 ms a turn): the two-ply loss of every turn that had a choice,
+// i.e. how much worse the play made scored than the best play, after the opponent's best reply.
+// Step 2, reviewTurn (Mr. Makis's play-outs, ~2 s): for one turn, the played move against the
+// best few, so the loss can be quoted as win chance.
+function positionsBefore(turns) {
+  const g = newGame(), out = [];
+  for (const t of turns) { out.push(cloneGame(g)); applySteps(g, t.p, t.steps); }
+  return out;
+}
+const finalKey = (mine, off) => Array.from(mine).join(',') + '|' + off;
+function playedFinal(v, steps) {
+  const mine = Int8Array.from(v.mine);
+  let off = v.myOff;
+  for (const s of steps) { mine[s.r]--; if (s.t) mine[s.t]++; else off++; }
+  return { steps, mine, myOff: off };
+}
+
+// Puzzles: the final-position key a play leads to (the format test/make-puzzles.mjs stores in
+// `keys`), and a play described the way the coach's explanations expect (no play-outs).
+export const playKey = (v, steps) => { const f = playedFinal(v, steps); return finalKey(f.mine, f.myOff); };
+export const describePlay = (v, steps) => candidate(v, playedFinal(v, steps), null, 0, 1);
+
+export function screenTurns(turns, side, W = WEIGHTS.tuned) {
+  const before = positionsBefore(turns), out = [];
+  turns.forEach((t, i) => {
+    if (t.p !== side) return;
+    const v = viewOf(before[i], side);
+    const finals = finalPositions(v, expandDice(t.dice));
+    if (finals.length <= 1) return;
+    const played = playedFinal(v, t.steps), pk = finalKey(played.mine, played.myOff);
+    const pre = finals.map((f) => ({ f, s: evaluate(leafView(v, f), W) })).sort((x, y) => y.s - x.s).slice(0, 10);
+    if (!pre.some((c) => finalKey(c.f.mine, c.f.myOff) === pk)) pre.push({ f: played });
+    let best = -Infinity, mine = null;
+    for (const c of pre) {
+      const val = replyValue(v, c.f, W);
+      if (val > best) best = val;
+      if (finalKey(c.f.mine, c.f.myOff) === pk) mine = val;
+    }
+    out.push({ i, loss: best - mine, legal: finals.length });
+  });
+  return out;
+}
+
+export function reviewTurn(turns, i, { rollouts = 120, top = 3, seed = 1 } = {}) {
+  const t = turns[i], g = positionsBefore(turns.slice(0, i + 1))[i], v = viewOf(g, t.p), W = WEIGHTS.tuned;
+  const finals = finalPositions(v, expandDice(t.dice));
+  const played = playedFinal(v, t.steps), pk = finalKey(played.mine, played.myOff);
+  const pre = finals.map((f) => ({ f, s: evaluate(leafView(v, f), W) })).sort((x, y) => y.s - x.s).slice(0, 30);
+  for (const c of pre) c.ply2 = replyValue(v, c.f, W);
+  pre.sort((x, y) => y.ply2 - x.ply2);
+  const picks = pre.slice(0, top);
+  const playedPick = picks.find((c) => finalKey(c.f.mine, c.f.myOff) === pk);
+  const cands = picks.map((c) => ({ ...candidate(v, c.f, c.ply2, rollouts, seed), mine: c === playedPick }));
+  if (!playedPick) cands.push({ ...candidate(v, played, replyValue(v, played, W), rollouts, seed), mine: true });
+  cands.sort((x, y) => (y.eq - x.eq) || (y.ply2 - x.ply2));
+  return { i, dice: t.dice.slice(), legal: finals.length, rollouts, base: positionFacts(v, W), best: cands[0], played: cands.find((c) => c.mine), cands };
 }
 
 export function rollDice(rnd = Math.random) {

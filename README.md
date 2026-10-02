@@ -20,6 +20,13 @@ No accounts, no ads, no tracking, no network calls: the game is a static page an
   expectimax search.
 - **Mr. Makis**, the coach: plays his move on your board, explains it from the position (new points, the
   wall, the runner, the race) and shows the next two candidates with win estimates from play-outs.
+- **Mistake review**: after a game, Mr. Makis finds your costliest moves (every move scored two rolls
+  deep, the doubtful ones played out to the end) and shows each one in replay: the position, your move,
+  and his move as a what-if, with the win chance each one gives.
+- **Puzzles**: "find the best move" positions from computer games, each with an answer Mr. Makis proved
+  by playing every candidate to the end hundreds of times (the right move wins at least 10 points of win
+  chance more than the best wrong one). Graded Easy to Master by which computer level already finds the
+  move.
 - **Hint**, **Undo**, an optional **opening throw**, **match to 5**, and **auto-end turn**.
 - **Game records:** the last five games are kept automatically, up to ten named saves, move-by-move
   **replay**, and `.vbg` files to share a game (every move of an imported file is re-checked by the rules
@@ -65,6 +72,7 @@ node test/rules.mjs                         # rules engine, random full games, f
 node test/strategy-check.mjs                # the strategy guide's claims vs the engine (instant)
 node test/selfplay.mjs 200 1-2 2-3 3-4 4-5  # each level against the one below
 node test/makis.mjs 40 120                  # Mr. Makis against the Expert (slow: ~1 min a game)
+node test/make-puzzles.mjs 8 8 150 40       # regenerate src/puzzles.js (worker threads, ~40 min)
 node test/strategy-stats.mjs 3000 4         # the figures quoted in the strategy guide
 ```
 

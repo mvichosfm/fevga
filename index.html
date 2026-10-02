@@ -164,8 +164,39 @@
   body.app .web-only { display:none !important; }
   #stratSheet { position:fixed; inset:0; z-index:60; background:#0b0807; }
   #stratSheet iframe { width:100%; height:100%; border:0; display:block; }
-  #makis { position:fixed; left:16px; top:50%; transform:translateY(-50%); width:min(380px, calc(100vw - 32px)); max-height:calc(100vh - 220px);
+  #puzzles .sheet { max-width:min(720px, 100%); max-height:calc(100vh - 32px); overflow:auto; text-align:left; }
+  #puzzles h2 { text-align:center; }
+  #puzzles h3 { margin:16px 0 4px; font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); }
+  #puzzles .tier-note { font-size:12px; color:var(--dim); margin:0 0 8px; }
+  #puzzles .row { display:flex; justify-content:center; gap:8px; margin-top:16px; flex-wrap:wrap; }
+  .pz-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(118px, 1fr)); gap:6px; }
+  .pz-tile { text-align:left; padding:7px 10px; font-size:13px; line-height:1.3; }
+  .pz-tile small { display:block; color:var(--dim); font-size:11px; }
+  .pz-tile.solved { border-color:rgba(120,200,160,.55); background:rgba(60,140,100,.16); }
+  .pz-tile.missed { border-color:rgba(230,140,120,.45); }
+  #pzBody { font-size:13.5px; line-height:1.5; }
+  #pzBody p { margin:6px 0; }
+  #pzBody b { color:var(--gold); }
+  #pzBody ul { margin:4px 0 6px; padding-left:18px; }
+  /* the actions stay reachable when a long result scrolls the panel */
+  #pzBtns { position:sticky; bottom:-14px; margin:8px -16px -14px; padding:8px 16px 12px; background:rgba(26,18,12,.97); border-top:1px solid var(--edge); }
+  .pz-ok { color:#9be0b8; font-weight:600; }
+  .pz-no { color:#f0b6a8; font-weight:600; }
+  #makis, #review, #puzzle { position:fixed; left:16px; top:50%; transform:translateY(-50%); width:min(380px, calc(100vw - 32px)); max-height:calc(100vh - 220px);
     overflow:auto; padding:14px 16px; z-index:4; border-color:rgba(120,200,160,.35); }
+  #reviewBody { font-size:13.5px; line-height:1.5; }
+  #reviewBody p { margin:6px 0; }
+  #reviewBody b { color:var(--gold); }
+  .rv-card { border:1px solid var(--edge); border-radius:10px; padding:8px 10px; margin:8px 0; background:rgba(255,235,200,.04); }
+  .rv-top { display:flex; gap:6px; align-items:baseline; flex-wrap:wrap; }
+  .rv-top b { color:var(--ink) !important; }
+  .rv-loss { margin-left:auto; color:#f0b6a8; font-weight:600; font-size:12.5px; }
+  .rv-why { color:var(--dim); font-size:12.5px; margin-top:3px; }
+  .rv-btns { display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
+  .rv-btns button { padding:4px 10px; font-size:12.5px; }
+  button.review-btn { color:#bfeed5; border-color:rgba(120,200,160,.4); background:rgba(60,140,100,.14); }
+  button.review-btn:hover:not(:disabled) { background:rgba(60,140,100,.28); }
+  .sheet button.review-btn { margin-left:8px; }
   .mk-head { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
   .mk-avatar { width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700;
     background:radial-gradient(circle at 35% 30%, #9fe0bf, #2f6d50); color:#0d2a1d; box-shadow:0 2px 8px rgba(0,0,0,.4); flex:none; }
@@ -181,7 +212,10 @@
   .mk-h { margin-top:10px; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:#8fd3b0; }
   .mk-foot { font-size:11.5px; color:var(--dim); margin-top:8px !important; }
   .mk-btns { display:flex; gap:8px; margin-top:10px; }
-  @media (max-width:700px) { #makis { top:auto; bottom:calc(max(16px, env(safe-area-inset-bottom)) + 120px); transform:none; max-height:45vh; } }
+  /* phones: during a puzzle the brand panel and scoreboard are not needed, so the puzzle panel covers
+     them at the top and leaves the board and the move bar free */
+  @media (max-width:700px) { #puzzle { top:max(16px, env(safe-area-inset-top)) !important; bottom:auto !important; transform:none !important; max-height:40vh !important; z-index:6; } }
+  @media (max-width:700px) { #makis, #review { top:auto; bottom:calc(max(16px, env(safe-area-inset-bottom)) + 120px); transform:none; max-height:45vh; } }
   #veil { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; background:#0b0807; z-index:9; transition:opacity .6s; }
   #veil.hidden { opacity:0; pointer-events:none; }
   #veil .t { font-family:Georgia, serif; font-size:42px; }
@@ -226,7 +260,8 @@
     <button id="rulesBtn">Rules</button>
     <button id="strategyBtn" title="Strategy guide (opens in a new tab)">Strategy</button>
     <button id="settingsBtn" title="Board style, numbers, sound">⚙ Settings</button>
-    <button id="gamesBtn" title="Recent and saved games, replay">Games</button>  </div>
+    <button id="gamesBtn" title="Recent and saved games, replay">Games</button>
+    <button id="puzzlesBtn" title="Find the best move: positions with a proven answer">Puzzles</button>  </div>
 </div>
 
 <div id="round" class="panel" hidden title="Round n = each side's n-th turn (Settings › Round counter)">
@@ -282,7 +317,7 @@
   <div class="sheet panel">
     <h2 class="serif" id="ovTitle"></h2>
     <p id="ovText"></p>
-    <button id="ovNew" class="primary">Play again</button><button id="ovSlam" class="slam" title="Just for fun (S)">Slam the board</button>
+    <button id="ovNew" class="primary">Play again</button><button id="ovReview" class="review-btn" title="Mr. Makis finds your costliest moves and shows them in replay">Review my mistakes</button><button id="ovSlam" class="slam" title="Just for fun (S)">Slam the board</button>
   </div>
 </div>
 
@@ -332,6 +367,25 @@
   </div>
 </div>
 
+<div id="review" class="panel" hidden>
+  <div class="mk-head">
+    <div class="mk-avatar serif">M</div>
+    <div><div class="mk-name serif">Mr. Makis</div><div class="mk-sub">Game review</div></div>
+    <button id="reviewClose" class="mk-x" title="Close">×</button>
+  </div>
+  <div id="reviewBody"></div>
+</div>
+
+<div id="puzzle" class="panel" hidden>
+  <div class="mk-head">
+    <div class="mk-avatar serif">?</div>
+    <div><div class="mk-name serif" id="pzTitle">Puzzle</div><div class="mk-sub" id="pzSub"></div></div>
+    <button id="pzExit" class="mk-x" title="Back to your game (Esc)">×</button>
+  </div>
+  <div id="pzBody"></div>
+  <div class="rv-btns" id="pzBtns"></div>
+</div>
+
 <div id="replayBar" class="panel" hidden>
   <div class="rtop"><span id="replayTitle" class="serif"></span><span id="replayTurn"></span></div>
   <div id="replayMove"></div>
@@ -342,6 +396,7 @@
     <button id="rpPlay" class="primary" title="Play / pause (Space)">▶ Play</button>
     <button id="rpNext" title="Next move (→)">▶</button>
     <button id="rpEnd" title="End (End)">⏭</button>
+    <button id="rpReview" class="review-btn" title="Mr. Makis's review: the costliest moves of this game">Mistakes</button>
     <button id="rpExit" title="Back to your game (Esc)">Exit replay</button>
   </div>
 </div>
@@ -352,6 +407,14 @@
     <div id="gamesBody"></div>
     <input type="file" id="vbgInput" accept=".vbg" hidden>
     <div class="row"><button id="closeGames" class="primary">Close</button></div>
+  </div>
+</div>
+
+<div id="puzzles" class="modal hidden">
+  <div class="sheet panel">
+    <h2 class="serif">Puzzles</h2>
+    <div id="puzzlesBody"></div>
+    <div class="row"><button id="closePuzzles" class="primary">Close</button></div>
   </div>
 </div>
 
