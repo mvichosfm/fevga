@@ -103,6 +103,7 @@ npm install
 node sync-web.mjs              # copies index.html, strategy.html, src/ and vendor/ into app/www
 npx cap add android            # first time only; afterwards: npx cap sync android
 node make-icons.mjs            # draws the launcher icons and splash into the Android project
+node patch-android.mjs         # MainActivity: keeps the phone's font size from scaling the HUD
 cd android
 ./gradlew assembleDebug        # -> app/build/outputs/apk/debug/app-debug.apk
 ```

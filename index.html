@@ -9,6 +9,7 @@
   :root { --gold:#e8b75a; --ink:#f3e9d8; --dim:#b6a78f; --glass:rgba(22,15,10,.66); --edge:rgba(255,226,170,.16); }
   * { box-sizing: border-box; }
   [hidden] { display:none !important; } /* panels below set display:flex, which would beat the attribute */
+  html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   html, body { margin:0; height:100%; background:#0b0807; color:var(--ink); overflow:hidden;
     font-family: "Segoe UI", system-ui, -apple-system, sans-serif; -webkit-user-select:none; user-select:none; }
   #scene { position:fixed; inset:0; width:100vw; height:100vh; display:block; touch-action:none; }
@@ -32,6 +33,8 @@
   select { font:inherit; font-size:14px; color:var(--ink); background:rgba(255,235,200,.08); border:1px solid var(--edge);
     border-radius:10px; padding:8px 10px; cursor:pointer; flex:1; min-width:0; }
   select option { background:#21170f; color:var(--ink); }
+  #menuBtn { display:none; }
+  #brandMenu { display:contents; } /* a dropdown on phones only (see the max-width:700px block) */
   #seat button { flex:1; display:flex; align-items:center; justify-content:center; gap:8px; padding:7px 10px; }
   #seat button .dot { width:13px; height:13px; }
   #seat button.on { border-color:var(--gold); background:rgba(232,183,90,.16); box-shadow:0 0 0 1px var(--gold) inset; }
@@ -251,21 +254,46 @@
   #veil .s { color:var(--dim); font-size:13px; letter-spacing:.12em; text-transform:uppercase; }
 
   @media (max-width:900px) { #help { display:none; } }
+  /* phones: everything stacks above and below the board, so every panel is kept to its minimum -
+     the brand panel is one row (title, level, ☰) with the rest in a dropdown, the scoreboard drops
+     the level line the select already shows, and lamp / lock / dimmer share one short row.
+     main.js frames the board in the band left between them (viewBand). */
   @media (max-width:700px) {
     kbd { display:none; }
-    #brand { padding:10px 12px; width:auto; right:72px; }
-    #brand h1 { font-size:22px; }
+    #brand { padding:6px 8px; width:auto; right:68px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; z-index:4; }
+    #brand h1 { font-size:20px; }
+    #brand h1 small { display:none; }
     #brand .row { margin-top:6px; gap:6px; }
+    #brand #levelRow { margin-top:0; flex:1; min-width:0; flex-wrap:nowrap; }
     #brand label { display:none; }
+    #menuBtn { display:block; padding:5px 11px; font-size:17px; line-height:1.2; }
+    #menuBtn[aria-expanded="true"] { border-color:var(--gold); background:rgba(232,183,90,.16); }
+    /* absolute, so opening it never changes the brand panel's height (positionHud measures that) */
+    #brandMenu { display:none; position:absolute; left:0; right:0; top:calc(100% + 6px); padding:2px 10px 10px;
+      background:rgba(22,15,10,.94); border:1px solid var(--edge); border-radius:14px; box-shadow:0 14px 50px rgba(0,0,0,.6);
+      backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); }
+    #brand.open #brandMenu { display:block; }
+    #brandMenu .row button { flex:1 1 auto; }
     #seat button, #brand select { padding:6px 8px; }
     /* top is set from the brand panel's real height by positionHud() in main.js */
-    #board { left:16px; right:16px; min-width:0; padding:6px 8px; display:flex; flex-wrap:wrap; gap:4px; }
-    #board .side { flex:1; min-width:0; }
-    #board .foot { width:100%; }
+    #board { left:16px; right:16px; min-width:0; padding:4px 6px; display:flex; flex-wrap:wrap; gap:2px 4px; }
+    #board .side { flex:1; min-width:0; padding:3px 6px; gap:0 8px; }
+    #board .foot { width:100%; margin-top:0; }
+    #resetScore { margin-left:auto; }
+    #levelFoot { display:none; }
+    .side .nm { font-size:13px; }
+    .side .meta { font-size:11px; }
     .side .sc { font-size:20px; }
     button { padding:8px 11px; }
-    #muteBtn { bottom:auto; top:max(16px, env(safe-area-inset-top)); right:16px; z-index:2; }
-    #viewTools { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 8px); }
+    #muteBtn { bottom:auto; top:max(16px, env(safe-area-inset-top)); right:16px; z-index:2; padding:7px 11px; }
+    #viewTools { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 8px); flex-direction:row-reverse; align-items:center; gap:6px; }
+    #bulbBtn { padding:2px 7px 1px; border-radius:11px; }
+    #bulbBtn svg { width:22px; height:40px; }
+    #camBtn { padding:8px 10px; }
+    #camBtn .tx { display:none; }
+    #dimmerBox { padding:8px 10px; gap:6px; }
+    #dimmer { width:84px; }
+    #dimmerVal { display:none; }
   }
 </style>
 </head>
@@ -275,10 +303,12 @@
 
 <div id="brand" class="panel">
   <h1 class="serif">Φεύγα<small>FEVGA · Greek tavli</small></h1>
-  <div class="row">
+  <div class="row" id="levelRow">
     <label for="levelSel">Computer opponent</label>
     <select id="levelSel" title="Computer difficulty"></select>
+    <button id="menuBtn" aria-expanded="false" aria-controls="brandMenu" title="Menu" aria-label="Menu">☰</button>
   </div>
+  <div id="brandMenu">
   <div class="row" id="seat" role="group" aria-label="Your colour">
     <label>You play</label>
     <button data-color="0" class="on"><span class="dot w"></span>White</button>
@@ -291,6 +321,7 @@
     <button id="settingsBtn" title="Board style, numbers, sound">⚙ Settings</button>
     <button id="gamesBtn" title="Recent and saved games, replay">Games</button>
     <button id="puzzlesBtn" title="Find the best move: positions with a proven answer">Puzzles</button>  </div>
+  </div>
 </div>
 
 <div id="round" class="panel" hidden title="Round n = each side's n-th turn (Settings › Round counter)">
@@ -306,7 +337,7 @@
     <span class="dot b" id="dotCpu"></span><span class="nm">Computer</span><span class="sc" id="scoreCpu">0</span>
     <span class="meta">Pips <b id="pipCpu">360</b> · Off <b id="offCpu">0</b></span>
   </div>
-  <div class="foot"><span>Level: <b id="levelName"></b></span><b id="matchInfo" hidden></b><button class="link" id="resetScore">reset score</button></div>
+  <div class="foot"><span id="levelFoot">Level: <b id="levelName"></b></span><b id="matchInfo" hidden></b><button class="link" id="resetScore">reset score</button></div>
 </div>
 
 <div id="stratSheet" hidden><iframe id="stratFrame" title="Strategy guide"></iframe></div>
@@ -361,7 +392,7 @@
       </g>
     </svg>
   </button>
-  <button id="camBtn" class="panel on" title="Allow turning and zooming the board (V)">🔒 View locked</button>
+  <button id="camBtn" class="panel on" title="Allow turning and zooming the board (V)"><span class="ic">🔒</span><span class="tx"> View locked</span></button>
   <label id="dimmerBox" class="panel" title="Room lighting — [ dimmer, ] brighter">
     <span aria-hidden="true">☀</span>
     <input type="range" id="dimmer" min="25" max="160" step="5" value="100" aria-label="Lighting">

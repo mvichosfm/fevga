@@ -1516,6 +1516,16 @@ $('doneBtn').onclick = done;
 $('undoBtn').onclick = undo;
 $('hintBtn').onclick = hint;
 $('newBtn').onclick = () => { startGame(); };
+// Phones: colour and the brand buttons live in a ☰ dropdown (CSS shows it only there). It drops
+// over the scoreboard and closes after any choice, an outside tap or Esc.
+function setMenu(open) {
+  $('brand').classList.toggle('open', open);
+  $('menuBtn').setAttribute('aria-expanded', String(open));
+}
+$('menuBtn').onclick = () => setMenu(!$('brand').classList.contains('open'));
+$('brandMenu').addEventListener('click', (e) => { if (e.target.closest('button')) setMenu(false); });
+document.addEventListener('pointerdown', (e) => { if (!$('brand').contains(e.target)) setMenu(false); });
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') setMenu(false); });
 for (const b of document.querySelectorAll('#seat button')) {
   b.onclick = () => {
     const c = +b.dataset.color;
@@ -2448,7 +2458,7 @@ function applyCamLock() {
   $('help').innerHTML = freeCam
     ? 'Click a glowing checker, then a highlighted point.<br>Drag to turn · scroll to zoom · 🔒 locks the view here.'
     : 'Click a glowing checker, then a highlighted point.<br>View locked · 🔓 to move it, <b>C</b> for the home view.';
-  $('camBtn').textContent = freeCam ? '🔓 Free view' : '🔒 View locked';
+  $('camBtn').innerHTML = freeCam ? '<span class="ic">🔓</span><span class="tx"> Free view</span>' : '<span class="ic">🔒</span><span class="tx"> View locked</span>';
   $('camBtn').title = freeCam ? 'Lock the board where it is now (V)' : 'Allow turning and zooming the board (V)';
   $('camBtn').classList.toggle('on', !freeCam);
   $('optFreeCam').checked = freeCam;
@@ -2471,18 +2481,67 @@ function homeView() { savedView = null; store.save(); resetView(true); }
 
 // ================================================================ camera / resize / loop
 let camAnim = null;
+// Portrait phones stack the HUD above and below the board (brand row + scoreboard on top, lamp /
+// lock / dimmer row + move bar below), so the home view frames the board in the band between
+// them instead of the whole screen. The bar is reserved at its two-row height so the board does
+// not jump when buttons come and go. Returns null where the panels sit in the corners.
+// What the phone framing must keep in view (world x, z): the board frame, the human's borne-off
+// towers (near right, whichever colour - black turns the stage), the computer's (far left) and
+// the idle dice (far right, world space).
+const FOOTPRINT = [
+  [-(FX + RAIL), -(FZ + RAIL)], [FX + RAIL, -(FZ + RAIL)], [-(FX + RAIL), FZ + RAIL], [FX + RAIL, FZ + RAIL],
+  [OFF_X + R, 16 + R], [OFF_X + R, 7.8 - R], [-OFF_X - R, -16 - R], [-OFF_X - R, -7.8 + R],
+  [OFF_X + 1.2 + DS, -12 - DS], [OFF_X + 1.2 + DS, -12 + DS],
+];
+function viewBand() {
+  const w = window.innerWidth, h = window.innerHeight;
+  if (w > 700 || h <= w) return null;
+  const bar = $('bar').getBoundingClientRect(), tools = $('viewTools').getBoundingClientRect();
+  const top = $('board').getBoundingClientRect().bottom + 4;
+  const bottom = bar.bottom - Math.max(bar.height, 140) - tools.height - 12;
+  return bottom - top > h * 0.3 ? { top, bottom } : null;
+}
 function viewPosition() {
   const w = window.innerWidth, h = window.innerHeight, aspect = w / h;
-  const vf = THREE.MathUtils.degToRad(camera.fov);
-  const hf = 2 * Math.atan(Math.tan(vf / 2) * aspect);
-  const needW = (OFF_X + 3.2) / Math.tan(hf / 2);
-  const needH = (FZ + RAIL + 3) / Math.tan(vf / 2) * 1.05;
-  const dist = Math.max(needW, needH) * 1.04 + 14;
+  const band = viewBand();
+  // portrait phones look down more steeply (~66 deg instead of ~53): the width is what limits the
+  // board there, and a steeper view spends the spare height on longer points and closer checkers
+  const dir = new THREE.Vector3(0, band ? 2.2 : 1.32, 1).normalize();
+  let dist;
+  if (band) {
+    // fit exactly: the closest distance at which the board plus the borne-off towers beside it
+    // project inside the screen width and the band's height, then shift the picture so that
+    // box is centred in the band (picking follows: the raycaster uses the same projection)
+    const c = camera.clone(); c.clearViewOffset();
+    const box = (d) => {
+      c.position.copy(controls.target).addScaledVector(dir, d); c.lookAt(controls.target); c.updateMatrixWorld();
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      const v = new THREE.Vector3();
+      for (const [x, z] of FOOTPRINT) for (const y of [0, 4]) {
+        v.set(x, y, z).add(controls.target).project(c);
+        const px = (v.x + 1) / 2 * w, py = (1 - v.y) / 2 * h;
+        x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
+      }
+      return { x0, x1, y0, y1 };
+    };
+    const fits = (b) => b.x1 - b.x0 <= w - 12 && b.y1 - b.y0 <= band.bottom - band.top;
+    let lo = 40, hi = 600;
+    for (let i = 0; i < 30; i++) { const mid = (lo + hi) / 2; if (fits(box(mid))) hi = mid; else lo = mid; }
+    dist = hi;
+    const b = box(dist);
+    camera.setViewOffset(w, h, Math.round((b.x0 + b.x1 - w) / 2), Math.round((b.y0 + b.y1) / 2 - (band.top + band.bottom) / 2), w, h);
+  } else {
+    camera.clearViewOffset();
+    const vf = THREE.MathUtils.degToRad(camera.fov);
+    const hf = 2 * Math.atan(Math.tan(vf / 2) * aspect);
+    const needW = (OFF_X + 3.2) / Math.tan(hf / 2);
+    const needH = (FZ + RAIL + 3) / Math.tan(vf / 2) * 1.05;
+    dist = Math.max(needW, needH) * 1.04 + 14;
+  }
   // fog only darkens the far table: it must start beyond the board however far the camera
   // sits (portrait phones back the camera off to ~280, past a fixed fog wall)
   fogBase = dist; // update() keeps the fog beyond the board even when a free view zooms out further
   camera.far = dist + 260; camera.updateProjectionMatrix();
-  const dir = new THREE.Vector3(0, 1.32, 1).normalize();
   return controls.target.clone().add(dir.multiplyScalar(dist));
 }
 function resetView(animate) {
@@ -2518,7 +2577,8 @@ function positionHud() {
   }
 }
 // a custom view stays put on resize; only the home view re-fits the window
-window.addEventListener('resize', () => { resize(); if (savedView) viewPosition(); else resetView(false); positionHud(); });
+// (HUD first: on phones the home view is framed between the panels)
+window.addEventListener('resize', () => { setMenu(false); resize(); positionHud(); if (savedView) viewPosition(); else resetView(false); });
 positionHud();
 
 const clock = new THREE.Clock();
