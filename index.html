@@ -258,9 +258,10 @@
      the brand panel is one row (title, level, ☰) with the rest in a dropdown, the scoreboard drops
      the level line the select already shows, and lamp / lock / dimmer share one short row.
      main.js frames the board in the band left between them (viewBand). */
-  @media (max-width:700px) {
+  /* compact rules shared by portrait phones and landscape phones */
+  @media (max-width:700px), (max-height:500px) {
     kbd { display:none; }
-    #brand { padding:6px 8px; width:auto; right:68px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; z-index:4; }
+    #brand { padding:6px 8px; display:flex; flex-wrap:wrap; align-items:center; gap:8px; z-index:4; }
     #brand h1 { font-size:20px; }
     #brand h1 small { display:none; }
     #brand .row { margin-top:6px; gap:6px; }
@@ -276,7 +277,7 @@
     #brandMenu .row button { flex:1 1 auto; }
     #seat button, #brand select { padding:6px 8px; }
     /* top is set from the brand panel's real height by positionHud() in main.js */
-    #board { left:16px; right:16px; min-width:0; padding:4px 6px; display:flex; flex-wrap:wrap; gap:2px 4px; }
+    #board { min-width:0; padding:4px 6px; display:flex; flex-wrap:wrap; gap:2px 4px; }
     #board .side { flex:1; min-width:0; padding:3px 6px; gap:0 8px; }
     #board .foot { width:100%; margin-top:0; }
     #resetScore { margin-left:auto; }
@@ -285,8 +286,8 @@
     .side .meta { font-size:11px; }
     .side .sc { font-size:20px; }
     button { padding:8px 11px; }
-    #muteBtn { bottom:auto; top:max(16px, env(safe-area-inset-top)); right:16px; z-index:2; padding:7px 11px; }
-    #viewTools { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 8px); flex-direction:row-reverse; align-items:center; gap:6px; }
+    #muteBtn { z-index:2; padding:7px 11px; }
+    #viewTools { align-items:center; gap:6px; }
     #bulbBtn { padding:2px 7px 1px; border-radius:11px; }
     #bulbBtn svg { width:22px; height:40px; }
     #camBtn { padding:8px 10px; }
@@ -294,6 +295,44 @@
     #dimmerBox { padding:8px 10px; gap:6px; }
     #dimmer { width:84px; }
     #dimmerVal { display:none; }
+    /* the dice in the status line: the 3D dice are small on a phone-sized board */
+    .chip { font-size:34px; }
+  }
+  /* portrait phones: panels stacked above and below the board */
+  @media (max-width:700px) and (min-height:501px) {
+    #brand { width:auto; right:68px; }
+    #board { left:16px; right:16px; }
+    #muteBtn { bottom:auto; top:max(16px, env(safe-area-inset-top)); right:16px; }
+    #viewTools { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 8px); flex-direction:row-reverse; }
+  }
+  /* phones in landscape (or any window under 500 px tall): the panels become two slim rails -
+     brand, score and lamp row on the left, the move bar on the right - and the board is framed
+     in the space between them (viewBand). */
+  @media (max-height:500px) {
+    #brand { left:max(8px, env(safe-area-inset-left)); top:max(8px, env(safe-area-inset-top)); right:auto; width:172px; }
+    #brand #levelRow { flex:1 1 100%; }
+    #menuBtn { position:absolute; top:5px; right:6px; padding:3px 10px; }
+    #brandMenu { right:auto; width:min(340px, calc(100vw - 24px)); }
+    #board { left:max(8px, env(safe-area-inset-left)); right:auto; width:172px; flex-direction:column; flex-wrap:nowrap; }
+    #board .side { flex:none; }
+    #viewTools { left:max(8px, env(safe-area-inset-left)); right:auto; bottom:max(8px, env(safe-area-inset-bottom)); flex-direction:row; gap:4px; }
+    #dimmerBox { padding:8px 7px; gap:4px; }
+    #dimmer { width:50px; }
+    #muteBtn { top:max(8px, env(safe-area-inset-top)); bottom:auto; right:max(8px, env(safe-area-inset-right)); padding:6px 10px; }
+    #bar { left:auto; transform:none; right:max(8px, env(safe-area-inset-right)); top:calc(max(8px, env(safe-area-inset-top)) + 44px);
+      bottom:max(8px, env(safe-area-inset-bottom)); width:164px; padding:8px; justify-content:center; overflow-y:auto; }
+    #statusRow { flex-direction:column; gap:4px; }
+    #status { font-size:13px; }
+    #buttons { display:grid; grid-template-columns:1fr 1fr; gap:6px; width:100%; }
+    #buttons button { padding:8px 4px; min-width:0; }
+    #buttons button.primary { grid-column:1 / -1; }
+    #resignAsk { display:flex; flex-direction:column; gap:6px; font-size:12.5px; }
+    #toast { bottom:max(8px, env(safe-area-inset-bottom)); }
+    #replayBar { left:auto; transform:none; right:max(8px, env(safe-area-inset-right)); top:max(8px, env(safe-area-inset-top));
+      bottom:max(8px, env(safe-area-inset-bottom)); width:200px; overflow-y:auto; }
+    #replayBar .rtop { flex-direction:column; }
+    #makis, #review, #puzzle { left:max(8px, env(safe-area-inset-left)) !important; top:max(8px, env(safe-area-inset-top)) !important;
+      bottom:auto !important; transform:none !important; width:min(300px, 40vw) !important; max-height:calc(100vh - 16px) !important; z-index:6; }
   }
 </style>
 </head>
@@ -342,7 +381,7 @@
 
 <div id="stratSheet" hidden><iframe id="stratFrame" title="Strategy guide"></iframe></div>
 
-<div id="help">Click a glowing checker, then a highlighted point.<br>Camera locked · free camera in Settings.</div>
+<div id="help">Click a glowing checker, then a highlighted point — or drag it there.<br>Camera locked · free camera in Settings.</div>
 <div id="toast"></div>
 
 <div id="bar" class="panel">

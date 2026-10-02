@@ -35,7 +35,11 @@ const RAIL = 2.7;          // frame rail width
 const RAIL_H = 1.45;       // rail height above the field
 const BASE = 1.5;          // board thickness below the field
 const TABLE_Y = -BASE;
-const DS = 1.75;           // die size
+// die size: on phones the whole board is a few hundred pixels wide and real-size dice read as
+// specks (Manos, S24 Ultra), so a phone-sized screen gets dice 1.6x larger; DSP spaces the pair
+const PHONE = Math.min(window.innerWidth, window.innerHeight) <= 500;
+const DS = PHONE ? 2.8 : 1.75;
+const DSP = DS / 1.75;
 const OFF_X = FX + RAIL + 4.6;
 
 const pointX = (a) => {
@@ -559,7 +563,7 @@ function buildDice() {
     }));
     const d = new THREE.Mesh(geo, ms);
     d.castShadow = true; d.receiveShadow = true;
-    d.position.set(OFF_X - 1 + i * 2.2, TABLE_Y + DS / 2, -12); // resting beside the board at start
+    d.position.set(OFF_X - 1 + i * 2.2 * DSP, TABLE_Y + DS / 2, -12); // resting beside the board at start
     scene.add(d);
     dice.push(d);
   }
@@ -581,7 +585,7 @@ function throwDie(i, value, side, slot, delay = 0) {
   dimDie(i, false);
   const sx = side === HUMAN ? 1 : -1;
   const end = new THREE.Vector3(
-    sx * (BAR / 2 + HALF / 2 + (slot - 0.5) * 3.4 + (Math.random() - 0.5) * 1.2),
+    sx * (BAR / 2 + HALF / 2 + (slot - 0.5) * 3.4 * DSP + (Math.random() - 0.5) * 1.2),
     DS / 2,
     (Math.random() - 0.5) * 3.2 + (slot - 0.5) * 0.8,
   );
@@ -881,7 +885,7 @@ function startGame() {
   record = { id: newId(), date: Date.now(), level, human: HUMAN, opening: null, openingPlay, turns: [], result: null };
   g = newGame();
   layoutCheckers(g, true);
-  dice.forEach((d, i) => { d.position.set(OFF_X - 1 + i * 2.2, TABLE_Y + DS / 2, -12); d.quaternion.copy(faceUpQuat(i ? 5 : 6)); dimDie(i, false); });
+  dice.forEach((d, i) => { d.position.set(OFF_X - 1 + i * 2.2 * DSP, TABLE_Y + DS / 2, -12); d.quaternion.copy(faceUpQuat(i ? 5 : 6)); dimDie(i, false); });
   phase = 'opening';
   $('overlay').classList.add('hidden');
   setStatus('Roll to see who starts');
@@ -1428,11 +1432,15 @@ function toast(msg) {
 
 // ================================================================ input
 const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
-function pickPoint(ev) {
+function setRay(ev) {
   const r = canvas.getBoundingClientRect();
   mouse.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
   ray.setFromCamera(mouse, camera);
-  const h = ray.intersectObjects([...checkerGroup.children, ...hitMeshes], false)[0];
+}
+// the point (0..23, -1 = bear off) under the pointer; `skip` = a checker being carried
+function pickPoint(ev, skip = null) {
+  setRay(ev);
+  const h = ray.intersectObjects([...checkerGroup.children, ...hitMeshes], false).find((x) => x.object !== skip);
   if (!h) return null;
   if (h.object.userData.point !== undefined) return h.object.userData.point;
   return pointOfChecker(h.object);
@@ -1443,8 +1451,55 @@ function pointOfChecker(mesh) {
   return null;
 }
 let down = null, hoverPt = null;
-canvas.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY }; sound.unlock(); });
+// Drag to move (finger or mouse; Manos 2026-10-03): press a glowing checker, slide it, and it goes
+// where the finger leaves the screen if that is a legal landing spot (one die or several);
+// anywhere else it glides back and stays picked up. A press that moves less than DRAG_PX is
+// still a tap, so tap-checker-then-tap-point works as before. While a checker is carried the
+// free camera does not turn.
+let drag = null; // { a, id, active, mesh }
+const DRAG_PX = 10;
+const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -3.2); // carried just above the stacks
+const dragHit = new THREE.Vector3();
+function endDragControls() { controls.enabled = true; canvas.style.cursor = ''; }
+function markHover(a) { // the landing spot under the finger grows a little
+  for (const to of dests.keys()) (to === -1 ? offDest : destMeshes[to]).scale.setScalar(to === a ? 1.45 : 1);
+}
+function returnCarried(d) {
+  const m = d.mesh, from = m.position.clone();
+  const to = m.userData.rest.clone();
+  m.userData.lift = selected === d.a ? 1.9 : 0;
+  to.y += m.userData.lift;
+  animateFn(0.2, (k) => m.position.lerpVectors(from, to, easeInOut(k))).then(() => { m.userData.anim--; });
+}
+function dropCarried(d, e) {
+  const a = pickPoint(e, d.mesh);
+  hoverPt = null; markHover(null);
+  if (a !== null && a !== d.a && dests.has(a) && phase === 'human-move' && !busy && selected === d.a) {
+    d.mesh.userData.anim--; // moveChecker takes over from where the finger let go
+    playPath(dests.get(a));
+    return;
+  }
+  if (a !== null && a !== d.a) sound.nope();
+  returnCarried(d); // keeps its anim count until it is back
+}
+canvas.addEventListener('pointerdown', (e) => {
+  down = { x: e.clientX, y: e.clientY }; sound.unlock();
+  drag = null;
+  if (phase !== 'human-move' || busy || !T || turnDone(T)) return;
+  const a = pickPoint(e);
+  if (a === null || a < 0 || !legalSources().has(a)) return;
+  drag = { a, id: e.pointerId, active: false, mesh: null };
+  controls.enabled = false; // this press may carry a checker: the board must not turn under it
+});
+canvas.addEventListener('pointercancel', () => {
+  const d = drag; drag = null; down = null; endDragControls();
+  if (d && d.active) { hoverPt = null; markHover(null); returnCarried(d); }
+});
 canvas.addEventListener('pointerup', (e) => {
+  if (drag) {
+    const d = drag; drag = null; endDragControls();
+    if (d.active) { down = null; dropCarried(d, e); return; }
+  }
   if (!down) return;
   const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y); down = null;
   if (moved > (freeCam ? 6 : 16)) return; // locked camera: forgive a shaky click
@@ -1459,6 +1514,30 @@ canvas.addEventListener('pointerup', (e) => {
   select(-1);
 });
 canvas.addEventListener('pointermove', (e) => {
+  if (drag && e.pointerId === drag.id) {
+    if (!drag.active) {
+      if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) < DRAG_PX) return;
+      const st = stacks[drag.a];
+      if (busy || phase !== 'human-move' || !st.length) { drag = null; endDragControls(); return; }
+      if (selected !== drag.a) select(drag.a);
+      drag.mesh = st[st.length - 1];
+      drag.mesh.userData.anim++; // the per-frame lift leaves it alone while carried
+      drag.mesh.userData.ao.visible = false;
+      drag.active = true;
+      try { canvas.setPointerCapture(e.pointerId); } catch { /* not supported: moves still arrive */ }
+    }
+    setRay(e);
+    if (ray.ray.intersectPlane(dragPlane, dragHit)) {
+      stage.worldToLocal(dragHit); // playing black turns the stage
+      dragHit.x = THREE.MathUtils.clamp(dragHit.x, -OFF_X - 3, OFF_X + 3);
+      dragHit.z = THREE.MathUtils.clamp(dragHit.z, -FZ - RAIL - 4, FZ + RAIL + 4);
+      drag.mesh.position.copy(dragHit);
+    }
+    hoverPt = pickPoint(e, drag.mesh);
+    markHover(dests.has(hoverPt) ? hoverPt : null);
+    canvas.style.cursor = 'grabbing';
+    return;
+  }
   if (e.buttons || phase !== 'human-move' || busy) { canvas.style.cursor = ''; hoverPt = null; return; }
   const a = pickPoint(e);
   hoverPt = a;
@@ -1603,12 +1682,12 @@ const replayPosition = (rec, n) => {
 function placeDice(d, side) {
   const sx = side === HUMAN ? 1 : -1;
   dice.forEach((m, i) => {
-    m.position.set(sx * (BAR / 2 + HALF / 2 + (i - 0.5) * 3.4), DS / 2, 0);
+    m.position.set(sx * (BAR / 2 + HALF / 2 + (i - 0.5) * 3.4 * DSP), DS / 2, 0);
     m.quaternion.copy(faceUpQuat(d[i])); dimDie(i, false);
   });
 }
 function restDice() {
-  dice.forEach((m, i) => { m.position.set(OFF_X - 1 + i * 2.2, TABLE_Y + DS / 2, -12); m.quaternion.copy(faceUpQuat(i ? 5 : 6)); dimDie(i, false); });
+  dice.forEach((m, i) => { m.position.set(OFF_X - 1 + i * 2.2 * DSP, TABLE_Y + DS / 2, -12); m.quaternion.copy(faceUpQuat(i ? 5 : 6)); dimDie(i, false); });
 }
 
 function enterReplay(rec) {
@@ -2460,8 +2539,8 @@ function applyCamLock() {
   controls.enableRotate = freeCam;
   controls.enableZoom = freeCam;
   $('help').innerHTML = freeCam
-    ? 'Click a glowing checker, then a highlighted point.<br>Drag to turn · scroll to zoom · 🔒 locks the view here.'
-    : 'Click a glowing checker, then a highlighted point.<br>View locked · 🔓 to move it, <b>C</b> for the home view.';
+    ? 'Click a glowing checker, then a highlighted point — or drag it there.<br>Drag the table to turn · scroll to zoom · 🔒 locks the view here.'
+    : 'Click a glowing checker, then a highlighted point — or drag it there.<br>View locked · 🔓 to move it, <b>C</b> for the home view.';
   $('camBtn').innerHTML = freeCam ? '<span class="ic">🔓</span><span class="tx"> Free view</span>' : '<span class="ic">🔒</span><span class="tx"> View locked</span>';
   $('camBtn').title = freeCam ? 'Lock the board where it is now (V)' : 'Allow turning and zooming the board (V)';
   $('camBtn').classList.toggle('on', !freeCam);
@@ -2495,45 +2574,77 @@ let camAnim = null;
 const FOOTPRINT = [
   [-(FX + RAIL), -(FZ + RAIL)], [FX + RAIL, -(FZ + RAIL)], [-(FX + RAIL), FZ + RAIL], [FX + RAIL, FZ + RAIL],
   [OFF_X + R, 16 + R], [OFF_X + R, 7.8 - R], [-OFF_X - R, -16 - R], [-OFF_X - R, -7.8 + R],
-  [OFF_X + 1.2 + DS, -12 - DS], [OFF_X + 1.2 + DS, -12 + DS],
+  [OFF_X - 1 + 2.2 * DSP + DS / 2, -12 - DS / 2], [OFF_X - 1 + 2.2 * DSP + DS / 2, -12 + DS / 2],
 ];
+// Which HUD layout the CSS is using: 'land' = phone on its side (max-height 500: left and right
+// rails), 'portrait' = narrow screen (panels above and below), 'desk' = panels in the corners.
+// Kept in step with the media queries in index.html.
+function hudMode() {
+  if (window.matchMedia('(max-height: 500px)').matches) return 'land';
+  if (window.matchMedia('(max-width: 700px)').matches) return 'portrait';
+  return 'desk';
+}
+// Phones frame the home view in the screen rectangle the HUD leaves free:
+//  portrait - between the scoreboard and the lamp row + a bar reserved at its two-row height
+//    (140 px, so the board does not jump as buttons come and go);
+//  landscape - between the left rail (brand, score, lamp) and the move bar on the right.
+// Returns null on desktop layouts, where the panels sit in the corners.
 function viewBand() {
-  const w = window.innerWidth, h = window.innerHeight;
-  if (w > 700 || h <= w) return null;
-  const bar = $('bar').getBoundingClientRect(), tools = $('viewTools').getBoundingClientRect();
-  const top = $('board').getBoundingClientRect().bottom + 4;
-  const bottom = bar.bottom - Math.max(bar.height, 140) - tools.height - 12;
-  return bottom - top > h * 0.3 ? { top, bottom } : null;
+  const w = window.innerWidth, h = window.innerHeight, mode = hudMode();
+  const rect = (id) => $(id).getBoundingClientRect();
+  if (mode === 'portrait' && h > w) {
+    const bar = rect('bar'), tools = rect('viewTools');
+    const top = rect('board').bottom + 4;
+    const bottom = bar.bottom - Math.max(bar.height, 140) - tools.height - 12;
+    return bottom - top > h * 0.3 ? { left: 0, right: w, top, bottom } : null;
+  }
+  if (mode === 'land') {
+    const left = Math.max(rect('brand').right, rect('board').right, rect('viewTools').right) + 4;
+    const right = rect('bar').left - 4;
+    return right - left > w * 0.3 ? { left, right, top: 4, bottom: h - 4 } : null;
+  }
+  return null;
+}
+// the camera's view of the FOOTPRINT from direction dir at distance d: its pixel bounding box
+function footprintBox(c, dir, d, w, h) {
+  c.position.copy(controls.target).addScaledVector(dir, d); c.lookAt(controls.target); c.updateMatrixWorld();
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  const v = new THREE.Vector3();
+  for (const [x, z] of FOOTPRINT) for (const y of [0, 4]) {
+    v.set(x, y, z).project(c); // FOOTPRINT is in world coordinates
+    const px = (v.x + 1) / 2 * w, py = (1 - v.y) / 2 * h;
+    x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
+  }
+  return { x0, x1, y0, y1 };
+}
+// the closest distance at which the footprint fits the band (bisection)
+function fitDistance(c, dir, band, w, h) {
+  const fits = (b) => b.x1 - b.x0 <= band.right - band.left - 12 && b.y1 - b.y0 <= band.bottom - band.top;
+  let lo = 30, hi = 600;
+  for (let i = 0; i < 30; i++) { const mid = (lo + hi) / 2; if (fits(footprintBox(c, dir, mid, w, h))) hi = mid; else lo = mid; }
+  return hi;
 }
 function viewPosition() {
   const w = window.innerWidth, h = window.innerHeight, aspect = w / h;
   const band = viewBand();
   // portrait phones look down more steeply (~66 deg instead of ~53): the width is what limits the
-  // board there, and a steeper view spends the spare height on longer points and closer checkers
-  const dir = new THREE.Vector3(0, band ? 2.2 : 1.32, 1).normalize();
+  // board there, and a steeper view spends the spare height on longer points and closer checkers.
+  // Landscape phones take whichever of the two angles shows the board larger in their band.
+  let dir = new THREE.Vector3(0, band ? 2.2 : 1.32, 1).normalize();
   let dist;
   if (band) {
     // fit exactly: the closest distance at which the board plus the borne-off towers beside it
-    // project inside the screen width and the band's height, then shift the picture so that
-    // box is centred in the band (picking follows: the raycaster uses the same projection)
+    // project inside the band, then shift the picture so that box is centred in the band
+    // (picking follows: the raycaster uses the same projection)
     const c = camera.clone(); c.clearViewOffset();
-    const box = (d) => {
-      c.position.copy(controls.target).addScaledVector(dir, d); c.lookAt(controls.target); c.updateMatrixWorld();
-      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-      const v = new THREE.Vector3();
-      for (const [x, z] of FOOTPRINT) for (const y of [0, 4]) {
-        v.set(x, y, z).add(controls.target).project(c);
-        const px = (v.x + 1) / 2 * w, py = (1 - v.y) / 2 * h;
-        x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
-      }
-      return { x0, x1, y0, y1 };
-    };
-    const fits = (b) => b.x1 - b.x0 <= w - 12 && b.y1 - b.y0 <= band.bottom - band.top;
-    let lo = 40, hi = 600;
-    for (let i = 0; i < 30; i++) { const mid = (lo + hi) / 2; if (fits(box(mid))) hi = mid; else lo = mid; }
-    dist = hi;
-    const b = box(dist);
-    camera.setViewOffset(w, h, Math.round((b.x0 + b.x1 - w) / 2), Math.round((b.y0 + b.y1) / 2 - (band.top + band.bottom) / 2), w, h);
+    dist = fitDistance(c, dir, band, w, h);
+    if (hudMode() === 'land') {
+      const flat = new THREE.Vector3(0, 1.32, 1).normalize(), dFlat = fitDistance(c, flat, band, w, h);
+      const span = (dv, dd) => { const b = footprintBox(c, dv, dd, w, h); return b.x1 - b.x0; };
+      if (span(flat, dFlat) > span(dir, dist)) { dir = flat; dist = dFlat; }
+    }
+    const b = footprintBox(c, dir, dist, w, h);
+    camera.setViewOffset(w, h, Math.round((b.x0 + b.x1) / 2 - (band.left + band.right) / 2), Math.round((b.y0 + b.y1) / 2 - (band.top + band.bottom) / 2), w, h);
   } else {
     camera.clearViewOffset();
     const vf = THREE.MathUtils.degToRad(camera.fov);
@@ -2563,7 +2674,7 @@ function resize() {
 // On phones the scoreboard sits under the brand panel, whose height depends on wrapping.
 function positionHud() {
   const b = $('board');
-  b.style.top = window.innerWidth <= 700 ? `${Math.round($('brand').getBoundingClientRect().bottom + 8)}px` : '';
+  b.style.top = hudMode() !== 'desk' ? `${Math.round($('brand').getBoundingClientRect().bottom + 8)}px` : '';
   // the view tools (lock + dimmer) sit bottom-right; lift them above the bottom bar wherever they would overlap
   const d = $('viewTools'), bar = $('bar').getBoundingClientRect();
   d.style.bottom = '';
@@ -2582,7 +2693,16 @@ function positionHud() {
 }
 // a custom view stays put on resize; only the home view re-fits the window
 // (HUD first: on phones the home view is framed between the panels)
-window.addEventListener('resize', () => { setMenu(false); resize(); positionHud(); if (savedView) viewPosition(); else resetView(false); });
+// Turning a phone (portrait <-> landscape) changes the HUD layout; a view saved for one layout does
+// not frame the board in the other, so a layout change returns to the home view.
+let lastHudMode = hudMode();
+window.addEventListener('resize', () => {
+  setMenu(false); resize(); positionHud();
+  const mode = hudMode();
+  if (mode !== lastHudMode && savedView) { savedView = null; store.save(); }
+  lastHudMode = mode;
+  if (savedView) viewPosition(); else resetView(false);
+});
 positionHud();
 
 const clock = new THREE.Clock();
