@@ -67,6 +67,14 @@ export class Sound {
     [392, 329.63, 261.63].forEach((f, i) => this._tone(f, i * 0.18, 0.7, 0.16, 'triangle'));
   }
   turn() { if (this._ok()) this._tone(880, 0, 0.25, 0.05); }
+  // pull-chain switch: the bead chain's metallic click-clack, and on a switch-on the faint
+  // ping of a cold filament catching
+  chain(on) {
+    if (!this._ok()) return;
+    this.tok(0.45, 2300);
+    setTimeout(() => this.tok(0.3, 1600), 70);
+    if (on) setTimeout(() => this._tone(1320, 0, 0.35, 0.025, 'sine'), 90);
+  }
   // the half of the board swinging over: a rising rush of air
   whoosh(dur = 0.45) {
     if (!this._ok()) return;

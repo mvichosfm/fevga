@@ -120,22 +120,84 @@ lampSpot.shadow.normalBias = 0.04;
 lampSpot.shadow.camera.near = 20; lampSpot.shadow.camera.far = 140;
 scene.add(lampSpot, lampSpot.target);
 let lampOn = false; // set from saved settings before the first applyLighting call
+// Two levels so switching can look like a real bulb: lampMix (0 room light .. 1 lamp) fades the
+// room, background and fog smoothly; lampGlow is the bulb itself, which stutters on and cools off.
+let lampMix = 0, lampGlow = 0;
+const LAMP_WARM = new THREE.Color(0xffd29a), LAMP_COLD = new THREE.Color(0xff7a2c);
+const BG_ROOM = new THREE.Color(0x0b0807), BG_LAMP = new THREE.Color(0x040302);
 function applyLighting(f) {
-  const room = lampOn ? LAMP.room : 1;
+  const m = lampMix;
+  const room = 1 + (LAMP.room - 1) * m;
   key.intensity = LIGHT_BASE.key * f * room;
   fill.intensity = LIGHT_BASE.fill * f * room;
-  hemi.intensity = LIGHT_BASE.hemi * f * (lampOn ? 0.35 : 1);
-  scene.environmentIntensity = LIGHT_BASE.env * f * (lampOn ? LAMP.env : 1);
-  lampSpot.intensity = lampOn ? LAMP.spot * f : 0;
+  hemi.intensity = LIGHT_BASE.hemi * f * (1 - 0.65 * m);
+  scene.environmentIntensity = LIGHT_BASE.env * f * (1 + (LAMP.env - 1) * m);
+  lampSpot.intensity = LAMP.spot * f * lampGlow;
+  scene.background.copy(BG_ROOM).lerp(BG_LAMP, m);
+  scene.fog.color.copy(scene.background);
 }
 
+// Snaps to the current lampOn with no animation (start-up, favourites, .vbs settings).
 function applyLamp() {
+  lampMix = lampGlow = lampOn ? 1 : 0;
+  lampSpot.color.copy(LAMP_WARM);
   key.castShadow = !lampOn;       // one shadow pass at a time: the lamp's, or the room light's
   lampSpot.castShadow = lampOn;
-  scene.background.set(lampOn ? 0x040302 : 0x0b0807);
-  scene.fog.color.set(lampOn ? 0x040302 : 0x0b0807);
   document.getElementById('vignette').classList.toggle('lamp', lampOn);
+  syncBulb();
   applyLighting(lightLevel);
+}
+
+// Bulb brightness over time (seconds -> 0..1), linear between keys: switching on stutters twice
+// like a cold filament catching (two dips in half a second: the lamp lights most of the screen, so
+// it stays under the three-flashes-a-second limit for large flashing areas); switching off drops at
+// once, then a short afterglow as it cools. The on-screen bulb's CSS keyframes (bulb-warm, 0.5 s)
+// follow the same first half second. Reduced motion: a smooth warm-up and fade, no flicker.
+const GLOW_ON = [[0, 0], [0.05, 0.6], [0.12, 0.15], [0.22, 0.85], [0.3, 0.45], [0.5, 1], [1.0, 1]];
+const GLOW_OFF = [[0, 1], [0.06, 0.22], [0.25, 0.08], [0.7, 0]];
+const GLOW_ON_SOFT = [[0, 0], [0.6, 1]], GLOW_OFF_SOFT = [[0, 1], [0.15, 0.35], [0.6, 0]];
+const curve = (keys, t) => {
+  for (let i = 1; i < keys.length; i++) {
+    if (t <= keys[i][0]) { const [t0, v0] = keys[i - 1], [t1, v1] = keys[i]; return v0 + (v1 - v0) * ((t - t0) / (t1 - t0)); }
+  }
+  return keys[keys.length - 1][1];
+};
+let lampRun = 0;
+function setLamp(on) {
+  if (on === lampOn) return;
+  lampOn = on;
+  store.save();
+  const btn = document.getElementById('bulbBtn');
+  if (btn) { btn.classList.remove('pull', 'warming', 'cooling'); void btn.offsetWidth; btn.classList.add('pull', on ? 'warming' : 'cooling'); }
+  syncBulb();
+  sound.unlock(); sound.chain(on);
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // shadows and the vignette change at the pull; the light itself follows the curve
+  key.castShadow = !on; lampSpot.castShadow = on;
+  document.getElementById('vignette').classList.toggle('lamp', on);
+  const keys = reduce ? (on ? GLOW_ON_SOFT : GLOW_OFF_SOFT) : (on ? GLOW_ON : GLOW_OFF);
+  const run = ++lampRun, dur = keys[keys.length - 1][0];
+  const mix0 = lampMix;
+  animateFn(dur, (k) => {
+    if (run !== lampRun) return;
+    const t = k * dur;
+    lampGlow = curve(keys, t);
+    const e = k * k * (3 - 2 * k);
+    lampMix = mix0 + ((on ? 1 : 0) - mix0) * e;
+    // a cold filament glows orange first and warms to its yellow-white; cooling goes the other way
+    lampSpot.color.copy(LAMP_COLD).lerp(LAMP_WARM, on ? Math.min(1, t / (0.8 * dur)) : Math.max(0, 1 - t / (0.35 * dur)));
+    applyLighting(lightLevel);
+  });
+  // the CSS pull/sway runs 1.4 s, longer than either light curve
+  setTimeout(() => { if (run === lampRun && btn) btn.classList.remove('pull', 'warming', 'cooling'); }, 1500);
+}
+function syncBulb() {
+  const btn = document.getElementById('bulbBtn');
+  if (!btn) return;
+  btn.classList.toggle('on', lampOn);
+  btn.setAttribute('aria-pressed', String(lampOn));
+  const opt = document.getElementById('optLamp');
+  if (opt) opt.checked = lampOn;
 }
 
 // ================================================================ materials
@@ -1439,6 +1501,7 @@ window.addEventListener('keydown', (e) => {
   else if (e.key === 'c' || e.key === 'C') homeView();
   else if (e.key === 'v' || e.key === 'V') setFreeCam(!freeCam);
   else if (e.key === 's' || e.key === 'S') slam();
+  else if (e.key === 'l' || e.key === 'L') setLamp(!lampOn);
   else if (e.key === '[') setLight(lightLevel - 0.1);
   else if (e.key === ']') setLight(lightLevel + 0.1);
   else if (e.key === 'Escape' && puzzle && $('rules').classList.contains('hidden') && $('settings').classList.contains('hidden')) exitPuzzle();
@@ -2301,7 +2364,8 @@ controls.addEventListener('change', () => {
   viewSaveTimer = setTimeout(() => { if (freeCam) { rememberView(); store.save(); } }, 400);
 });
 $('optOpening').onchange = (e) => { openingPlay = e.target.checked; store.save(); };
-$('optLamp').onchange = (e) => { lampOn = e.target.checked; applyLamp(); store.save(); };
+$('optLamp').onchange = (e) => setLamp(e.target.checked);
+$('bulbBtn').onclick = () => setLamp(!lampOn);
 // Switching match play on or off starts the count at 0-0; the game in progress counts toward it.
 $('optMatch').onchange = (e) => {
   matchOn = e.target.checked; matchScore = [0, 0]; store.save(); updateHud();

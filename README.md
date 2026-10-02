@@ -31,7 +31,8 @@ No accounts, no ads, no tracking, no network calls: the game is a static page an
 - **Game records:** the last five games are kept automatically, up to ten named saves, move-by-move
   **replay**, and `.vbg` files to share a game (every move of an imported file is re-checked by the rules
   engine).
-- Ten board styles (woods and marbles), a room dimmer, a retro hanging lamp, free or locked camera,
+- Ten board styles (woods and marbles), a room dimmer, a retro hanging lamp with an on-screen pull-chain
+  switch (the bulb stutters on like a cold filament and fades with an afterglow), free or locked camera,
   point numbers, an optional **round counter**, and favourite setups you can save and export (`.vbs`).
 - **Strategy guide** (English and Greek) built from thousands of computer-vs-computer games: where to build,
   the runner, the wall, staying mobile, mars. Every figure states the sample it came from.
