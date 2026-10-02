@@ -726,8 +726,11 @@ function setStatus(html) { $('status').innerHTML = html; }
 
 function legalSources() { return new Set(legal.map((s) => s.from)); }
 
+// Copies every field of the turn (mustOpen included - the unblocking duty; dropping it once let
+// computeDests offer destinations the engine then refused, freezing the turn) and gives the copy
+// its own board, dice and history so exploring it never touches the live turn.
 function cloneTurn(t) {
-  return { p: t.p, dice: t.dice, v: { mine: Int8Array.from(t.v.mine), opp: t.v.opp, myOff: t.v.myOff, oppOff: t.v.oppOff }, rem: t.rem.slice(), M: t.M, played: t.played.slice() };
+  return { ...t, v: { ...t.v, mine: Int8Array.from(t.v.mine) }, rem: t.rem.slice(), played: t.played.slice() };
 }
 
 // Every landing spot of the selected checker, including several dice in a row.
@@ -912,6 +915,7 @@ async function startHumanTurn(d) {
     // the turn passes by itself after a pause; busy keeps Done / Enter from ending it a second
     // time meanwhile (that recorded the turn twice and then crashed on T = null)
     const myT = T;
+    legal = []; selected = -1; dests = new Map(); // nothing to pick (and no leftovers from the last turn)
     phase = 'human-move'; busy = true; updateHud();
     setStatus(`You rolled ${diceLabel(curDice)} — no legal move`);
     await wait(1.6);

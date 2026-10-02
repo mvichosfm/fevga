@@ -54,6 +54,9 @@ No accounts, no ads, no tracking, no network calls: the game is a static page an
   loss; a double is no longer offered once you have a checker off.
 
 `src/engine.js` is the authority: its header lists the rules, and `test/rules.mjs` checks them.
+`test/legality.mjs` re-implements the rules independently (absolute board, brute force over every die
+order) and checks, for every roll in thousands of positions, that the moves the game offers are exactly
+the legal ones: nothing legal missing, nothing illegal allowed.
 
 ## Run it locally
 
@@ -70,6 +73,7 @@ Any static server works too, e.g. `python -m http.server 8831`.
 
 ```bash
 node test/rules.mjs                         # rules engine, random full games, file formats (instant)
+node test/legality.mjs                      # every legal play vs an independent brute-force rules implementation (~1 min)
 node test/strategy-check.mjs                # the strategy guide's claims vs the engine (instant)
 node test/selfplay.mjs 200 1-2 2-3 3-4 4-5  # each level against the one below
 node test/makis.mjs 40 120                  # Mr. Makis against the Expert (slow: ~1 min a game)
