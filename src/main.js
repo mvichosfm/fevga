@@ -1643,7 +1643,17 @@ window.addEventListener('message', (e) => { if (e.data === 'fevga:close-strategy
 window.addEventListener('popstate', () => closeStrategy(true));
 $('strategyBtn').onclick = openStrategy;
 $('rulesStrategy').onclick = openStrategy;
+// two taps: the link sits right beside the scores, and one stray touch used to wipe them
+let resetArmed = 0, resetTimer = null;
 $('resetScore').onclick = () => {
+  if (Date.now() - resetArmed > 3000) {
+    resetArmed = Date.now();
+    $('resetScore').textContent = 'reset? tap again';
+    clearTimeout(resetTimer);
+    resetTimer = setTimeout(() => { $('resetScore').textContent = 'reset score'; }, 3000);
+    return;
+  }
+  resetArmed = 0; clearTimeout(resetTimer); $('resetScore').textContent = 'reset score';
   score = [0, 0];
   if (matchOn) matchScore = [0, 0];
   store.save(); updateHud(); toast(matchOn ? 'Match score reset to 0–0' : 'Score reset');
@@ -1670,6 +1680,7 @@ sel.onchange = () => {
   level = parseInt(sel.value, 10); store.save(); updateHud();
   toast(`Computer: ${LEVELS[level - 1].name} — ${LEVELS[level - 1].blurb}`);
   sel.blur();
+  setMenu(false); // in landscape the select is inside the ☰ menu: picking a level closes it
 };
 
 // ================================================================ replay viewer
@@ -2571,10 +2582,15 @@ let camAnim = null;
 // What the phone framing must keep in view (world x, z): the board frame, the human's borne-off
 // towers (near right, whichever colour - black turns the stage), the computer's (far left) and
 // the idle dice (far right, world space).
+// Each entry is [x, z, top]: the box spans y = TABLE_Y (the board's underside / the table) to `top`.
+// The frame is only RAIL_H tall; the tallest thing on the field is a five-high stack near a rail;
+// borne-off towers stand five high on the table.
+const STACK_TOP = 5 * CT + 0.2, TOWER_TOP = TABLE_Y + 5 * CT;
 const FOOTPRINT = [
-  [-(FX + RAIL), -(FZ + RAIL)], [FX + RAIL, -(FZ + RAIL)], [-(FX + RAIL), FZ + RAIL], [FX + RAIL, FZ + RAIL],
-  [OFF_X + R, 16 + R], [OFF_X + R, 7.8 - R], [-OFF_X - R, -16 - R], [-OFF_X - R, -7.8 + R],
-  [OFF_X - 1 + 2.2 * DSP + DS / 2, -12 - DS / 2], [OFF_X - 1 + 2.2 * DSP + DS / 2, -12 + DS / 2],
+  [-(FX + RAIL), -(FZ + RAIL), RAIL_H], [FX + RAIL, -(FZ + RAIL), RAIL_H], [-(FX + RAIL), FZ + RAIL, RAIL_H], [FX + RAIL, FZ + RAIL, RAIL_H],
+  [-(FX - R), -(FZ - R), STACK_TOP], [FX - R, -(FZ - R), STACK_TOP], [-(FX - R), FZ - R, STACK_TOP], [FX - R, FZ - R, STACK_TOP],
+  [OFF_X + R, 16 + R, TOWER_TOP], [OFF_X + R, 7.8 - R, TOWER_TOP], [-OFF_X - R, -16 - R, TOWER_TOP], [-OFF_X - R, -7.8 + R, TOWER_TOP],
+  [OFF_X - 1 + 2.2 * DSP + DS / 2, -12 - DS / 2, TABLE_Y + DS], [OFF_X - 1 + 2.2 * DSP + DS / 2, -12 + DS / 2, TABLE_Y + DS],
 ];
 // Which HUD layout the CSS is using: 'land' = phone on its side (max-height 500: left and right
 // rails), 'portrait' = narrow screen (panels above and below), 'desk' = panels in the corners.
@@ -2600,7 +2616,9 @@ function viewBand() {
   }
   if (mode === 'land') {
     const left = Math.max(rect('brand').right, rect('board').right, rect('viewTools').right) + 4;
-    const right = rect('bar').left - 4;
+    // the move bar, or the replay bar that takes its place during a replay
+    const rightPanel = !$('bar').hidden ? 'bar' : !$('replayBar').hidden ? 'replayBar' : null;
+    const right = (rightPanel ? rect(rightPanel).left : w) - 4;
     return right - left > w * 0.3 ? { left, right, top: 4, bottom: h - 4 } : null;
   }
   return null;
@@ -2610,7 +2628,7 @@ function footprintBox(c, dir, d, w, h) {
   c.position.copy(controls.target).addScaledVector(dir, d); c.lookAt(controls.target); c.updateMatrixWorld();
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
   const v = new THREE.Vector3();
-  for (const [x, z] of FOOTPRINT) for (const y of [0, 4]) {
+  for (const [x, z, top] of FOOTPRINT) for (const y of [TABLE_Y, top]) {
     v.set(x, y, z).project(c); // FOOTPRINT is in world coordinates
     const px = (v.x + 1) / 2 * w, py = (1 - v.y) / 2 * h;
     x0 = Math.min(x0, px); x1 = Math.max(x1, px); y0 = Math.min(y0, py); y1 = Math.max(y1, py);
@@ -2673,6 +2691,16 @@ function resize() {
 }
 // On phones the scoreboard sits under the brand panel, whose height depends on wrapping.
 function positionHud() {
+  // landscape phones: the left rail is too narrow for the level select, so it lives at the top of
+  // the ☰ menu there (it is set once, not during play); everywhere else it sits under the title
+  // (☰ itself stays in the brand panel's corner)
+  const lr = $('levelRow'), mb = $('menuBtn'), land = hudMode() === 'land';
+  if (land && lr.parentElement !== $('brandMenu')) { $('brand').insertBefore(mb, $('brandMenu')); $('brandMenu').prepend(lr); }
+  else if (!land && lr.parentElement !== $('brand')) { $('brand').insertBefore(lr, $('brandMenu')); lr.appendChild(mb); }
+  // ...and the sound button joins the lamp / lock row, so the move bar gets the right rail's full height
+  const mute = $('muteBtn'), tools = $('viewTools');
+  if (land && mute.parentElement !== tools) tools.insertBefore(mute, $('dimmerBox'));
+  else if (!land && mute.parentElement === tools) document.body.insertBefore(mute, tools);
   const b = $('board');
   b.style.top = hudMode() !== 'desk' ? `${Math.round($('brand').getBoundingClientRect().bottom + 8)}px` : '';
   // the view tools (lock + dimmer) sit bottom-right; lift them above the bottom bar wherever they would overlap
@@ -2696,13 +2724,17 @@ function positionHud() {
 // Turning a phone (portrait <-> landscape) changes the HUD layout; a view saved for one layout does
 // not frame the board in the other, so a layout change returns to the home view.
 let lastHudMode = hudMode();
-window.addEventListener('resize', () => {
+function onViewportChange() {
   setMenu(false); resize(); positionHud();
   const mode = hudMode();
   if (mode !== lastHudMode && savedView) { savedView = null; store.save(); }
   lastHudMode = mode;
   if (savedView) viewPosition(); else resetView(false);
-});
+}
+window.addEventListener('resize', onViewportChange);
+// also when the layout's media queries flip (some WebViews report the rotation late or not as a
+// resize), so the rails, the ☰ menu contents and the board framing always match the CSS
+for (const q of ['(max-height: 500px)', '(max-width: 700px)']) window.matchMedia(q).addEventListener('change', onViewportChange);
 positionHud();
 
 const clock = new THREE.Clock();
