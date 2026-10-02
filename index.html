@@ -46,6 +46,7 @@
   #round.inline .lbl { font-size:inherit; letter-spacing:normal; text-transform:none; color:var(--dim); }
   #round.inline b { font-size:inherit; color:var(--gold); min-width:0; }
   #round.inline #roundSub { display:none; }
+  #status .tot { color:var(--gold); font-variant-numeric:tabular-nums; white-space:nowrap; }
   .side { display:grid; grid-template-columns: 18px 1fr auto; gap:2px 10px; align-items:center; padding:6px 8px; border-radius:10px; border:1px solid transparent; transition:.25s; }
   .side.on { border-color:rgba(232,183,90,.55); background:rgba(232,183,90,.09); box-shadow:0 0 18px rgba(232,183,90,.15) inset; }
   .dot { width:16px; height:16px; border-radius:50%; box-shadow:0 1px 3px rgba(0,0,0,.6), inset 0 -2px 3px rgba(0,0,0,.25); }
@@ -452,6 +453,7 @@
     <button id="rpNext" title="Next move (→)">▶</button>
     <button id="rpEnd" title="End (End)">⏭</button>
     <button id="rpReview" class="review-btn" title="Mr. Makis's review: the costliest moves of this game">Mistakes</button>
+    <button id="rpContinue" class="review-btn" title="Play on from the position shown">Continue from here</button>
     <button id="rpExit" title="Back to your game (Esc)">Exit replay</button>
   </div>
 </div>
@@ -496,6 +498,7 @@
     <label class="opt"><input type="checkbox" id="optLamp"> Retro lamp light — a warm pool of light from a lamp hanging over the board; the room around it goes dark</label>
     <label class="opt"><input type="checkbox" id="optNumbers"> Point numbers on the rails</label>
     <label class="opt"><input type="checkbox" id="optRound"> Round counter at the top — round 10 is each side's tenth turn, the moment the strategy guide's "after ten turns" figures describe</label>
+    <label class="opt"><input type="checkbox" id="optTotal"> Show the sum of the two dice in the move message — a 6–5 reads "(sum 11)"</label>
     <label class="opt"><input type="checkbox" id="optSound"> Sound effects</label>
     <label class="opt"><input type="checkbox" id="optFreeCam"> Free view — drag to turn the board, scroll to zoom (off: the board stays where it is; also the 🔒 button or V)</label>
     <div class="row">

@@ -668,7 +668,7 @@ function askReview(type, payload) {
 const sound = new Sound();
 const store = {
   load() { try { return JSON.parse(localStorage.getItem('fevga.v1')) || {}; } catch { return {}; } },
-  save() { try { localStorage.setItem('fevga.v1', JSON.stringify({ level, score, muted: sound.muted, color: seatColor, theme: themeId, numbers: showNumbers, freeCam, autoEnd, openingPlay, light: lightLevel, match: matchOn, matchScore, view: savedView, lamp: lampOn, round: showRound })); } catch { /* private mode */ } },
+  save() { try { localStorage.setItem('fevga.v1', JSON.stringify({ level, score, muted: sound.muted, color: seatColor, theme: themeId, numbers: showNumbers, freeCam, autoEnd, openingPlay, light: lightLevel, match: matchOn, matchScore, view: savedView, lamp: lampOn, round: showRound, total: showTotal })); } catch { /* private mode */ } },
 };
 const saved = store.load();
 let level = saved.level >= 1 && saved.level <= 5 ? saved.level : 3;
@@ -677,6 +677,9 @@ let seatColor = saved.color === 1 ? 1 : 0;                     // white unless c
 let themeId = themeById(saved.theme).id;                        // board style (Settings)
 let showNumbers = saved.numbers !== false;                      // rail point numbers (Settings)
 let showRound = saved.round === true;                           // round counter at the top (Settings)
+let showTotal = saved.total === true;                           // sum of the two dice in the move message (Settings)
+// "6–5 (sum 11)": the dice for status messages; the sum only when the setting is on
+const diceLabel = (d) => `<b>${d[0]}–${d[1]}</b>${showTotal ? ` <span class="tot">(sum ${d[0] + d[1]})</span>` : ''}`;
 // Camera is locked by default: a click with a little drag used to orbit the board (and the
 // damping kept it drifting) while Manos was moving checkers. Settings > Free camera unlocks.
 let freeCam = saved.freeCam === true;
@@ -910,7 +913,7 @@ async function startHumanTurn(d) {
     // time meanwhile (that recorded the turn twice and then crashed on T = null)
     const myT = T;
     phase = 'human-move'; busy = true; updateHud();
-    setStatus(`You rolled <b>${curDice[0]}–${curDice[1]}</b> — no legal move`);
+    setStatus(`You rolled ${diceLabel(curDice)} — no legal move`);
     await wait(1.6);
     if (my !== gid || T !== myT || phase !== 'human-move') return;
     busy = false;
@@ -970,7 +973,7 @@ function beginHumanStep() {
   } else {
     const n = T.M - T.played.length;
     const partial = T.M < (curDice[0] === curDice[1] ? 4 : 2) && !T.played.length ? ` (only ${T.M} playable)` : '';
-    setStatus(`Your move: <b>${curDice[0]}–${curDice[1]}</b>${partial} · ${n} to play — pick a glowing checker`);
+    setStatus(`Your move: ${diceLabel(curDice)}${partial} · ${n} to play — pick a glowing checker`);
   }
   updateHud();
   refreshMarks();
@@ -1041,7 +1044,7 @@ async function cpuTurn(preset = null) {
   T = createTurn(g, CPU, curDice);
   if (T.mustOpen) toast('All your checkers are stuck right behind the computer\'s six in a row, so it must open one of those points this turn');
   updateHud();
-  setStatus(`Computer rolled <b>${curDice[0]}–${curDice[1]}</b> · thinking<span class="dots"></span>`);
+  setStatus(`Computer rolled ${diceLabel(curDice)} · thinking<span class="dots"></span>`);
   const t0 = performance.now();
   const steps = await think(g, CPU, curDice, level);
   const minThink = 0.35 + level * 0.12;
@@ -1049,10 +1052,10 @@ async function cpuTurn(preset = null) {
   if (el < minThink) await wait(minThink - el);
   if (my !== gid) return;
   if (!steps.length) {
-    setStatus(`Computer rolled <b>${curDice[0]}–${curDice[1]}</b> — no legal move`);
+    setStatus(`Computer rolled ${diceLabel(curDice)} — no legal move`);
     await wait(1.4);
   } else {
-    setStatus(`Computer plays <b>${curDice[0]}–${curDice[1]}</b>`);
+    setStatus(`Computer plays ${diceLabel(curDice)}`);
     for (const st of steps) {
       const s = turnPlay(T, st);
       updateHud();
@@ -1698,7 +1701,61 @@ function updateReplayUi() {
   $('rpNext').disabled = $('rpEnd').disabled = b || idx === N;
   $('rpPlay').textContent = playing ? '❚❚ Pause' : '▶ Play';
   $('replaySlider').disabled = b;
+  replay.confirmContinue = false; // moving through the game cancels a pending "replace?" question
+  const cont = continueState();
+  $('rpContinue').disabled = b || !cont.ok;
+  $('rpContinue').textContent = 'Continue from here';
+  $('rpContinue').title = cont.ok ? 'Play on from the position shown' : cont.why;
   updateHud();
+}
+
+// Can the position shown in the replay become a live game? Not before the first move, and not once
+// somebody has won (nothing left to play).
+function continueState() {
+  const { rec, idx, pos } = replay;
+  if (idx === 0) return { ok: false, why: 'Step past the first move to continue from a position' };
+  if (winner(pos) || (idx === rec.turns.length && rec.resigned)) return { ok: false, why: 'This game is over — there is nothing left to play' };
+  return { ok: true };
+}
+
+// Replay -> live: play on from the position shown. You keep the colour you had in that game, the
+// computer plays the other side (and moves first if it was its turn), and the moves up to here become
+// the start of a new game record. The game you had in progress is replaced, so that asks first.
+function continueFromHere() {
+  const R = replay;
+  if (!R || R.busy || phase !== 'replay' || !continueState().ok) return;
+  const inProgress = !!record && record.turns.length > 0 && R.live.phase !== 'over';
+  if (inProgress && !R.confirmContinue) {
+    R.confirmContinue = true;
+    $('rpContinue').textContent = 'Replace my current game?';
+    $('rpContinue').title = 'Click again to replace the game you were playing (it stays in Recent games until pushed out)';
+    return;
+  }
+  const rec = R.rec, n = R.idx;
+  const turns = rec.turns.slice(0, n).map((t) => ({ p: t.p, dice: t.dice.slice(), steps: t.steps.map(({ r, t: to, d }) => ({ r, t: to, d })) }));
+  const next = 1 - turns[n - 1].p; // sides alternate; passes are recorded
+  gid++; flushAnims();
+  closeReplayUi(); closeMakis();
+  busy = false; T = null; curDice = null; turnStart = null; selected = -1; legal = []; dests = new Map(); hintPath = null;
+  seatColor = rec.human === 1 ? 1 : 0; store.save();
+  applySeat(seatColor);
+  record = { id: newId(), date: Date.now(), level, human: HUMAN, opening: rec.opening ? rec.opening.slice() : null, openingPlay: !!rec.openingPlay, turns, result: null };
+  g = replayPosition(rec, n);
+  layoutCheckers(g, false);
+  restDice();
+  $('overlay').classList.add('hidden');
+  clearMarks();
+  toast(`Playing on from move ${n} — you are ${HUMAN === 0 ? 'white' : 'black'}, the computer is ${LEVELS[level - 1].name}`);
+  if (next === HUMAN) {
+    phase = 'human-roll';
+    sound.turn();
+    setStatus('Your turn — <b>roll the dice</b>');
+    updateHud();
+  } else {
+    phase = 'cpu';
+    updateHud();
+    cpuTurn();
+  }
 }
 
 function closeReplayUi() {
@@ -2129,6 +2186,7 @@ $('rpNext').onclick = () => replayStep();
 $('rpEnd').onclick = () => replayJump(replay.rec.turns.length);
 $('rpPlay').onclick = () => replayPlay();
 $('rpExit').onclick = () => exitReplay();
+$('rpContinue').onclick = () => continueFromHere();
 $('replaySlider').oninput = (e) => { if (replay) { replay.playing = false; replayJump(+e.target.value); } };
 
 // ================================================================ settings
@@ -2183,6 +2241,7 @@ function renderSettings() {
   for (const card of grid.children) card.classList.toggle('current', card.dataset.theme === themeId);
   $('optNumbers').checked = showNumbers;
   $('optRound').checked = showRound;
+  $('optTotal').checked = showTotal;
   $('optSound').checked = !sound.muted;
   $('optFreeCam').checked = freeCam;
   $('optAutoEnd').checked = autoEnd;
@@ -2218,21 +2277,21 @@ const storeFavs = () => { try { localStorage.setItem(FAV_KEY, JSON.stringify(fav
 function snapshotSetup() {
   return {
     level, color: seatColor, light: lightLevel, lamp: lampOn, freeCam, view: freeCam ? null : savedView,
-    theme: themeId, numbers: showNumbers, round: showRound, muted: sound.muted, autoEnd, openingPlay, match: matchOn,
+    theme: themeId, numbers: showNumbers, round: showRound, total: showTotal, muted: sound.muted, autoEnd, openingPlay, match: matchOn,
   };
 }
 function favSummary(s) {
   return [themeById(s.theme).name, LEVELS[s.level - 1].name, `plays ${s.color === 1 ? 'black' : 'white'}`,
     `light ${Math.round(s.light * 100)}%${s.lamp ? ' + retro lamp' : ''}`, s.freeCam ? 'free view' : (s.view ? 'view locked (own angle)' : 'view locked'),
     ...(s.match ? ['match to 5'] : []), ...(s.autoEnd ? ['auto-end turn'] : []), ...(s.openingPlay ? ['plays opening dice'] : []),
-    ...(s.numbers ? [] : ['no point numbers']), ...(s.round ? ['round counter'] : []), ...(s.muted ? ['sound off'] : [])].join(' · ');
+    ...(s.numbers ? [] : ['no point numbers']), ...(s.round ? ['round counter'] : []), ...(s.total ? ['dice sum'] : []), ...(s.muted ? ['sound off'] : [])].join(' · ');
 }
 
 async function applyFavourite(f) {
   const s = f.s;
   if (themeById(s.theme).id !== themeId) { await applyTheme(s.theme); themeId = themeById(s.theme).id; }
   showNumbers = s.numbers !== false; for (const p of railPlanes) p.visible = showNumbers;
-  showRound = !!s.round;
+  showRound = !!s.round; showTotal = !!s.total;
   sound.setMuted(!!s.muted); $('muteBtn').textContent = sound.muted ? '🔇' : '🔊';
   autoEnd = !!s.autoEnd; openingPlay = !!s.openingPlay;
   if (!!s.match !== matchOn) { matchOn = !!s.match; matchScore = [0, 0]; } // same rule as the switch
@@ -2351,6 +2410,10 @@ $('favList').addEventListener('keydown', (e) => {
 $('closeSettings').onclick = () => $('settings').classList.add('hidden');
 $('optNumbers').onchange = (e) => { showNumbers = e.target.checked; for (const p of railPlanes) p.visible = showNumbers; store.save(); };
 $('optRound').onchange = (e) => { showRound = e.target.checked; updateRound(); store.save(); };
+$('optTotal').onchange = (e) => {
+  showTotal = e.target.checked; store.save();
+  if (phase === 'human-move' && T && !busy) beginHumanStep(); // the message in view picks the change up now
+};
 $('optSound').onchange = (e) => { sound.setMuted(!e.target.checked); $('muteBtn').textContent = sound.muted ? '🔇' : '🔊'; store.save(); };
 $('settingsView').onclick = () => { homeView(); $('settings').classList.add('hidden'); };
 $('optFreeCam').onchange = (e) => setFreeCam(e.target.checked);

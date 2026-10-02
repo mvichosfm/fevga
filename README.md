@@ -29,11 +29,11 @@ No accounts, no ads, no tracking, no network calls: the game is a static page an
   move.
 - **Hint**, **Undo**, an optional **opening throw**, **match to 5**, and **auto-end turn**.
 - **Game records:** the last five games are kept automatically, up to ten named saves, move-by-move
-  **replay**, and `.vbg` files to share a game (every move of an imported file is re-checked by the rules
-  engine).
+  **replay**, **Continue from here** to play on from any position of a recorded game, and `.vbg` files to
+  share a game (every move of an imported file is re-checked by the rules engine).
 - Ten board styles (woods and marbles), a room dimmer, a retro hanging lamp with an on-screen pull-chain
   switch (the bulb stutters on like a cold filament and fades with an afterglow), free or locked camera,
-  point numbers, an optional **round counter**, and favourite setups you can save and export (`.vbs`).
+  point numbers, an optional **round counter** and **dice sum**, and favourite setups you can save and export (`.vbs`).
 - **Strategy guide** (English and Greek) built from thousands of computer-vs-computer games: where to build,
   the runner, the wall, staying mobile, mars. Every figure states the sample it came from.
 - And, for the bad days, **Slam!**: fold the board shut with a bang. The game carries on exactly where it was.
