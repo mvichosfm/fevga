@@ -1,0 +1,616 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fevga - Strategy guide</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%233a2414'/%3E%3Ccircle cx='26' cy='26' r='15' fill='%233b2618' stroke='%231a0f08' stroke-width='2'/%3E%3Ccircle cx='38' cy='38' r='15' fill='%23f4ead8' stroke='%23c9b796' stroke-width='2'/%3E%3Ccircle cx='38' cy='38' r='9.5' fill='none' stroke='%23a8936f' stroke-width='1.2'/%3E%3C/svg%3E">
+<style>
+  :root { --gold:#e8b75a; --ink:#f3e9d8; --dim:#b6a78f; --glass:rgba(34,24,16,.72); --edge:rgba(255,226,170,.16);
+    --wood:#3a2415; --wood2:#24160c; --pa:#8a5a32; --pb:#d9c29a; --silver:#b9c3cc; }
+  * { box-sizing:border-box; }
+  html { background:#0b0807; }
+  body { margin:0; color:var(--ink); background:#0b0807 radial-gradient(ellipse 90% 60% at 50% 0%, #2a1a0f 0%, #0b0807 70%) no-repeat;
+    font:15px/1.6 "Segoe UI", system-ui, -apple-system, sans-serif; }
+  .wrap { max-width:880px; margin:0 auto; padding:max(20px, env(safe-area-inset-top)) 16px max(40px, env(safe-area-inset-bottom)); }
+  .serif, h1, h2 { font-family:Georgia, "Times New Roman", serif; font-weight:600; }
+  a { color:var(--gold); }
+  header { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; margin:8px 0 18px; }
+  h1 { margin:0; font-size:40px; line-height:1.05; letter-spacing:.01em; }
+  h1 small { display:block; font:400 13px "Segoe UI", system-ui, sans-serif; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); margin-top:8px; }
+  .back { font-size:14px; color:var(--ink); text-decoration:none; border:1px solid var(--edge); background:rgba(255,235,200,.08);
+    border-radius:10px; padding:9px 16px; white-space:nowrap; }
+  .back:hover { background:rgba(255,235,200,.18); border-color:rgba(255,226,170,.4); }
+  .tools { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .lang { display:flex; border:1px solid var(--edge); border-radius:10px; overflow:hidden; }
+  .lang button { font:600 13px "Segoe UI", system-ui, sans-serif; letter-spacing:.06em; color:var(--dim); background:rgba(255,235,200,.05);
+    border:none; padding:9px 13px; cursor:pointer; }
+  .lang button + button { border-left:1px solid var(--edge); }
+  .lang button:hover { color:var(--ink); background:rgba(255,235,200,.14); }
+  .lang button.on { color:#2a1a06; background:linear-gradient(#f0c46e,#d79a32); }
+  .lede { color:#e6dccb; font-size:16.5px; max-width:68ch; margin:0 0 18px; }
+  .card { background:var(--glass); border:1px solid var(--edge); border-radius:14px; padding:20px 22px; margin:0 0 18px;
+    box-shadow:0 10px 40px rgba(0,0,0,.3); }
+  h2 { font-size:26px; margin:0 0 4px; }
+  .kicker { font-size:11.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--gold); margin:0 0 2px; }
+  h3 { font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin:18px 0 6px; }
+  p { margin:8px 0; max-width:72ch; }
+  ul, ol { margin:8px 0; padding-left:22px; max-width:72ch; }
+  li { margin-bottom:6px; }
+  b { color:#fff4de; }
+  .num { color:var(--gold); font-weight:600; font-variant-numeric:tabular-nums; }
+  nav { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 18px; }
+  nav a { font-size:13px; text-decoration:none; color:var(--dim); border:1px solid var(--edge); border-radius:999px; padding:4px 12px; }
+  nav a:hover { color:var(--ink); border-color:rgba(255,226,170,.4); }
+
+  .thumbs { counter-reset:t; list-style:none; padding:0; margin:6px 0 0; max-width:none; display:grid; gap:10px; }
+  .thumbs li { counter-increment:t; display:grid; grid-template-columns:34px 1fr; gap:12px; align-items:start; margin:0; }
+  .thumbs li::before { content:counter(t); font:600 20px Georgia, serif; color:#2a1a06; background:linear-gradient(#f0c46e,#d79a32);
+    width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.4); }
+
+  .fig { margin:14px 0 6px; overflow-x:auto; }
+  .fig svg { display:block; width:100%; min-width:520px; height:auto; }
+  .cap { font-size:12.5px; color:var(--dim); margin:4px 0 0; }
+  .legend { display:flex; flex-wrap:wrap; gap:6px 18px; font-size:13px; color:var(--dim); margin-top:8px; }
+  .legend i { display:inline-block; width:22px; height:4px; border-radius:2px; vertical-align:middle; margin-right:6px; }
+
+  .facts { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:10px; margin:12px 0 4px; }
+  .fact { border:1px solid var(--edge); border-radius:12px; padding:10px 12px; background:rgba(255,235,200,.04); }
+  .fact .big { font:600 28px/1.1 Georgia, serif; color:var(--gold); }
+  .fact .lbl { font-size:12.5px; color:var(--dim); line-height:1.4; margin-top:4px; }
+
+  .callout { border-left:3px solid var(--gold); background:rgba(232,183,90,.07); padding:10px 14px; border-radius:0 10px 10px 0; margin:12px 0; max-width:72ch; }
+  .callout.warn { border-left-color:#d9826c; background:rgba(200,90,60,.08); }
+
+  .rolls { display:grid; grid-template-columns:28px repeat(6, minmax(44px, 1fr)); gap:4px; max-width:520px; margin:12px 0 4px; }
+  .rolls div { border-radius:8px; text-align:center; padding:6px 2px; font-variant-numeric:tabular-nums; }
+  .rolls .h { color:var(--dim); font-size:12px; padding:6px 0; }
+  .rolls .c { border:1px solid var(--edge); }
+  .rolls .c b { display:block; font-size:15px; color:#fff; }
+  .rolls .c span { font-size:11px; color:rgba(255,244,222,.75); }
+  .rolls .x { background:none; }
+
+  .bars { display:grid; grid-template-columns:auto 1fr auto; gap:6px 10px; align-items:center; max-width:620px; margin:12px 0 4px; font-size:13.5px; }
+  .bars .k { color:var(--dim); white-space:nowrap; }
+  .bars .track { height:16px; background:rgba(255,235,200,.06); border-radius:8px; overflow:hidden; }
+  .bars .fill { height:100%; border-radius:8px; background:linear-gradient(90deg, #a8722a, #f0c46e); }
+  .bars .v { font-variant-numeric:tabular-nums; text-align:right; min-width:7ch; }
+  .bars .v small { color:var(--dim); font-size:11px; }
+  .bars .mid { grid-column:2; position:relative; height:0; }
+
+  table { border-collapse:collapse; font-size:13.5px; margin:10px 0 4px; }
+  .tbl { overflow-x:auto; }
+  th, td { padding:6px 12px 6px 0; text-align:left; border-bottom:1px solid var(--edge); vertical-align:top; }
+  th { font-weight:600; color:var(--gold); font-size:11.5px; letter-spacing:.1em; text-transform:uppercase; }
+  td.r { text-align:right; font-variant-numeric:tabular-nums; }
+  footer { font-size:12.5px; color:var(--dim); margin-top:24px; }
+  footer p { max-width:none; }
+  @media (max-width:600px) {
+    h1 { font-size:32px; }
+    .card { padding:16px 14px; }
+    h2 { font-size:22px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1><span data-lang="en">Φεύγα strategy<small>How to beat the Expert at Fevga</small></span><span data-lang="el" hidden>Φεύγα: στρατηγική<small>Πώς να νικήσεις τον Expert</small></span></h1>
+  <div class="tools">
+    <div class="lang" role="group" aria-label="Language / Γλώσσα">
+      <button type="button" data-set-lang="en" title="English">EN</button><button type="button" data-set-lang="el" title="Ελληνικά">ΕΛ</button>
+    </div>
+    <a class="back" id="back" href="./"><span data-lang="en">← Back to the game</span><span data-lang="el" hidden>← Πίσω στο παιχνίδι</span></a>
+  </div>
+</header>
+
+<div data-lang="en">
+<p class="lede">Fevga has no hitting, so you win by <b>blocking</b>: you get your own checkers moving and leave the computer's
+stuck behind points it cannot land on. The advice below comes from the game's own computer players. They played thousands
+of games against each other, and every figure is quoted with the sample it came from (see <a href="#method">how this was measured</a>).</p>
+
+<nav aria-label="Sections">
+  <a href="#thumbs">Rules of thumb</a><a href="#map">The board</a><a href="#runner">1 · The runner</a>
+  <a href="#wall">2 · The wall</a><a href="#trapped">3 · Staying mobile</a><a href="#end">4 · Race &amp; mars</a>
+  <a href="#learn">Learning in the app</a>
+</nav>
+
+<section class="card" id="thumbs">
+  <p class="kicker">In one minute</p>
+  <h2>Five rules of thumb</h2>
+  <ol class="thumbs">
+    <li><div><b>Get your runner past point 13 first.</b> The side whose runner escapes first wins <span class="num">58%</span> of games.</div></li>
+    <li><div><b>Build a wall of points in a row in front of the computer's checkers.</b> How long your wall gets predicts the result better than anything else we measured.</div></li>
+    <li><div><b>Build it on the far side, on your points 2–8</b>: 2–6 are the last stretch before the computer's home, and 7–8 are its top two home points.
+      After ten turns the computer usually still has 12–14 checkers that must cross the whole stretch.</div></li>
+    <li><div><b>Never leave a big stack stuck behind its wall.</b> After ten turns, players with 8 or more checkers still on the start point won only <span class="num">36%</span> of the time.</div></li>
+    <li><div><b>Count on mars.</b> Around half of all games end with the loser not having borne off a single checker. If you are behind, get one checker off. If you are ahead, keep the computer locked in.</div></li>
+  </ol>
+</section>
+
+<section class="card" id="map">
+  <p class="kicker">Orientation</p>
+  <h2>The board from your seat</h2>
+  <p>The numbers are <b>your</b> points, the same ones printed on the rails (Settings → Point numbers). You count them the way you
+  travel: your start is 1 and the last point of your home is 24. The board turns so your start is always far right and your home
+  near right, whichever colour you play. The rules call it a 24-point race, but strategically the board has four quarters,
+  and each one does a different job for you:</p>
+  <div class="fig" data-fig="boardMap"></div>
+  <div class="legend"><span><i style="background:var(--gold)"></i>your path, 1 → 24, then off</span>
+    <span><i style="background:var(--silver)"></i>computer's path, from your 13 round to its home on your 7–12</span></div>
+  <ul>
+    <li><b>Your home, 19–24 (near right).</b> The computer's checkers come through here <em>early</em>, in the first half of their journey.
+      Points you hold here slow its whole army from the very beginning.</li>
+    <li><b>Your start quarter, 1–6 (far right).</b> This is the last stretch before the computer's home, so every computer checker
+      must cross it near the end of its journey. It is also the one quarter you may <b>never fully occupy</b>: holding all six of 1–6 is illegal.</li>
+    <li><b>The computer's home, 7–12 (far left).</b> It only reaches this quarter at the very end. Your points here count late in the game.</li>
+    <li><b>The computer's start, 13.</b> As long as one of its checkers stands on 13, you cannot land there. Your runner has to jump over it.</li>
+  </ul>
+</section>
+
+<section class="card" id="runner">
+  <p class="kicker">Phase 1 · the opening</p>
+  <h2>The runner</h2>
+  <p>Until one of your checkers has passed the computer's start (your point 13), you may move <b>only that one checker</b>. It has to reach
+  point 14 or higher, which means travelling 13 pips without ever landing on 13. Your other 14 checkers wait on 1 until it gets there.</p>
+  <div class="facts">
+    <div class="fact"><div class="big">58%</div><div class="lbl">win rate for the side whose runner escapes first (58.7% at Advanced, 57.7% at Expert)</div></div>
+    <div class="fact"><div class="big">54%</div><div class="lbl">win rate for the side that moves first (55.9% at Advanced, 53.0% at Expert)</div></div>
+    <div class="fact"><div class="big">5-5</div><div class="lbl">the only opening roll that frees the runner at once: 1 → 6 → 11 → 16</div></div>
+  </div>
+  <h3>Opening rolls, first mover's win rate</h3>
+  <div class="rolls" data-fig="rolls" aria-label="Win rate by opening roll"></div>
+  <p class="cap">Advanced against Advanced, 1,500 games per roll (±1.3 points). What matters is how far the runner gets: reaching 11–12 wins
+  about 60%, while stopping on 4–6 is barely better than a coin toss.</p>
+  <div class="callout warn"><b>The doubles trap.</b> Big doubles bump into the stack on 13 and lose dice. 6-6 can play only one six
+  (1 → 7, then 13 is blocked), 4-4 only two fours (to 9), 3-3 only three threes (to 10). 2-2 and 5-5 play all four.</div>
+  <h3>What you can still decide</h3>
+  <ul>
+    <li>With two different dice, the order sometimes matters, because the stop in between must not be on 13. The game only offers you orders that are legal.</li>
+    <li>As soon as the runner passes 13 in the middle of your move, every remaining die is free. You may already bring a <b>second checker</b> off 1
+      and start building.</li>
+    <li>The <b>Opening throw</b> option (Settings → Play) makes the winner play the two opening dice. That rules out a double on the first move, so no 5-5 start, but no 6-6 waste either.</li>
+  </ul>
+</section>
+
+<section class="card" id="wall">
+  <p class="kicker">Phase 2 · the middle game</p>
+  <h2>Build the wall</h2>
+  <p>A <b>wall</b> is a run of your points one after another, with computer checkers still behind it that have to get past. One checker is enough
+  to own a point, so a wall costs you very little material. To the computer it is a fence: a checker facing six blocked points ahead
+  cannot move at all.</p>
+  <h3>Longest wall reached in the game → win rate</h3>
+  <div class="bars" data-fig="wallBars"></div>
+  <p class="cap">Advanced against Advanced, 3,000 games (6,000 sides). Expert games show the same curve: 47% at 6, 68% at 8.</p>
+  <p>The jump from <span class="num">11%</span> at five to <span class="num">45%</span> at six to <span class="num">73%</span> at eight is the whole game in one
+  picture. In this match-up a side that never got past four points in a row won less than <span class="num">1%</span>.</p>
+
+  <h3>Where the Expert builds</h3>
+  <p>The share of Expert games in which it held each point after its tenth turn (300 games, both sides):</p>
+  <div class="fig" data-fig="heatMap"></div>
+  <p class="cap">The darker the gold, the more often the Expert held that point. 1 is the start stack. 13 is never held this early because the computer's start stack is still there.</p>
+  <ul>
+    <li>The heaviest building is on <b>4–5 (64–65%)</b>, <b>3 (58%)</b>, <b>7 (54%)</b> and <b>2 (52%)</b>. That is a fence across the last stretch
+      before the computer's home and its top two home points, which most of its checkers still have to cross.</li>
+    <li><b>7–8</b> extend the fence past the start quarter. You may not hold all six of 1–6, so while checkers still stand on 1, the wall grows onwards into 7 and 8 instead.</li>
+    <li>Point <b>24 (47%)</b> is held surprisingly often. A checker parked at the end of your home still blocks: it is the computer's
+      point 12, a landing spot its checkers need early on their way round.</li>
+    <li>The deep points of the computer's home (10–12, held 11–23%) are mostly <b>left alone</b> early. Holding more of 7–12 after ten turns did not predict wins:
+      0 to 4 points there won between 48% and 54%.</li>
+  </ul>
+
+  <div class="callout"><b>Six in a row is allowed.</b> You may hold six or more points in a row anywhere except your own starting quarter
+  (all six of 1–6). There is one limit: if every computer checker on the board ends up on the single point right behind your six, your next
+  move must open one of those points so it can move again. In 3,000 test games that never happened, so in practice your wall can keep growing.</div>
+</section>
+
+<section class="card" id="trapped">
+  <p class="kicker">Phase 2 · the other side of the coin</p>
+  <h2>Stay mobile</h2>
+  <p>The computer is building a wall against you too, on your 14–20 (its 2–8). The worst position in Fevga is a <b>tall stack sitting
+  behind that wall</b>: each turn it cannot move, all your other checkers have to spend the dice instead, and your structure falls apart.</p>
+  <div class="facts">
+    <div class="fact"><div class="big">36%</div><div class="lbl">wins with 8 or more checkers still on the start after ten turns (2,173 cases)</div></div>
+    <div class="fact"><div class="big">61%</div><div class="lbl">wins with 4–7 still on the start (2,593 cases)</div></div>
+    <div class="fact"><div class="big">51%</div><div class="lbl">wins with 0–3 still on the start (1,234 cases)</div></div>
+  </div>
+  <p class="cap">Advanced against Advanced, 3,000 games. These are correlations, not proof, but the pattern makes sense: bring checkers out
+  steadily, and keep a few back as spare moves for turns when everything else is blocked.</p>
+  <ul>
+    <li><b>Look six pips ahead of every stack.</b> Count how many of those points the computer holds. One or two blocked is normal; four or more is an emergency.</li>
+    <li><b>Spread out, don't pile up.</b> A point needs only one checker. A fourth or fifth checker on the same outfield point adds no
+      blocking and is one more checker that has to get past the computer later.</li>
+    <li><b>The self-play tuner agrees.</b> When the computer tuned its own judgement by playing itself, the biggest change was making
+      <b>each extra checker in a blocked stack</b> count more than three times as heavily (0.3 → 1.0). That version took 60% of the points against the hand-tuned one, and it now plays as Advanced and Expert.</li>
+  </ul>
+</section>
+
+<section class="card" id="end">
+  <p class="kicker">Phase 3 · the end</p>
+  <h2>Race, bear-off and mars</h2>
+  <div class="facts">
+    <div class="fact"><div class="big">45%</div><div class="lbl">of Expert-vs-Expert games end in mars (60% at Advanced)</div></div>
+    <div class="fact"><div class="big">≈100</div><div class="lbl">turns in a typical game, about 50 rolls each</div></div>
+  </div>
+  <ul>
+    <li><b>Watch the pip counts</b> on the scoreboard (both start at 360). Once neither side blocks the other, it is a pure race and the lower count decides it.</li>
+    <li><b>Behind? Get one checker off.</b> A loss is 1 point, a mars is 2. Once the race is lost, bring your checkers home and bear off one as early as you can.
+      That turns a 2-point loss into a 1-point loss, and in a match to 5 one point is a fifth of the match.</li>
+    <li><b>Ahead with the computer still stuck?</b> Don't open the gate early. Each turn your wall holds is a turn its back checkers stay out of its home, and that is how a 1-point win becomes a mars.</li>
+    <li><b>Bearing off:</b> a higher die may take a checker from your highest point, so a home board spread over several points wastes fewer pips than one tall stack on 19, the first point of your home.</li>
+  </ul>
+</section>
+
+<section class="card" id="learn">
+  <p class="kicker">Practice</p>
+  <h2>Learning with the app</h2>
+  <ul>
+    <li><b>Hint (H)</b> shows the move the Expert would play with your dice. Ask before you move; once you have played a die you need to undo first.</li>
+    <li><b>Mr. Makis (M)</b> is the level-10 coach. He plays his move on the board and explains it from the position: new points, the wall, how many
+      computer checkers are still behind it. He also shows the next two candidates with estimated win rates from 120 play-outs each.
+      Against the Expert he won 23 games to 17. Keep his move, or take it back and play your own.</li>
+    <li><b>Games → Replay</b> your last five games move by move and ask yourself where your wall stopped growing, or when your stack got stuck.</li>
+    <li><b>Climb the levels.</b> Each level beat the one below it in testing: Novice 77%, Intermediate 82%, Advanced 64%, Expert 60%.
+      Once you regularly beat Advanced, the Expert is a fair test.</li>
+  </ul>
+</section>
+
+<footer id="method">
+  <h3>How this was measured</h3>
+  <p>All figures come from the game's own engine (<code>src/engine.js</code>) playing against itself on 2 October 2026, with fixed random seeds:
+  3,000 Advanced-vs-Advanced games (wall length, start-point stack, first move, mars), 300 Expert-vs-Expert games (point occupancy, checkers
+  still to cross 2–8, and the Expert checks on the other figures), and 1,500 Advanced games for each of the 21 opening rolls. "Runner escapes first" means the first side with a
+  checker on its point 14 or higher. "Wall" means the longest run of a side's points in a row with an opposing checker still behind it.
+  These are computer-vs-computer statistics: they show what wins between strong players, not a solved game.</p>
+</footer>
+</div>
+
+<div data-lang="el" lang="el" hidden>
+<p class="lede">Στη φεύγα δεν υπάρχει χτύπημα, οπότε κερδίζεις <b>μπλοκάροντας</b>: κρατάς τα δικά σου πούλια σε κίνηση και αφήνεις
+του υπολογιστή κολλημένα πίσω από θέσεις όπου δεν μπορεί να πατήσει. Οι συμβουλές παρακάτω βγαίνουν από τους ίδιους τους υπολογιστικούς
+παίκτες του παιχνιδιού. Έπαιξαν μεταξύ τους χιλιάδες παρτίδες, και κάθε αριθμός δίνεται μαζί με το δείγμα από το οποίο προέκυψε
+(δες <a href="#method-el">πώς μετρήθηκαν</a>).</p>
+
+<nav aria-label="Ενότητες">
+  <a href="#thumbs-el">Βασικοί κανόνες</a><a href="#map-el">Το ταμπλό</a><a href="#runner-el">1 · Ο δρομέας</a>
+  <a href="#wall-el">2 · Το τείχος</a><a href="#trapped-el">3 · Μείνε ευκίνητος</a><a href="#end-el">4 · Κούρσα &amp; μαρς</a>
+  <a href="#learn-el">Εξάσκηση στην εφαρμογή</a>
+</nav>
+
+<section class="card" id="thumbs-el">
+  <p class="kicker">Σε ένα λεπτό</p>
+  <h2>Πέντε βασικοί κανόνες</h2>
+  <ol class="thumbs">
+    <li><div><b>Βγάλε πρώτος τον δρομέα σου πέρα από τη θέση 13.</b> Η πλευρά της οποίας ο δρομέας ξεφεύγει πρώτος κερδίζει το <span class="num">58%</span> των παρτίδων.</div></li>
+    <li><div><b>Χτίσε ένα τείχος από συνεχόμενες θέσεις μπροστά από τα πούλια του υπολογιστή.</b> Το πόσο μακρύ γίνεται το τείχος σου προβλέπει το αποτέλεσμα καλύτερα από οτιδήποτε άλλο μετρήσαμε.</div></li>
+    <li><div><b>Χτίσ' το στην απέναντι πλευρά, στις θέσεις σου 2–8</b>: οι 2–6 είναι το τελευταίο κομμάτι πριν από το σπίτι του υπολογιστή και οι 7–8 οι δύο εξωτερικές θέσεις του σπιτιού του.
+      Μετά από δέκα γύρους, ο υπολογιστής έχει συνήθως ακόμη 12–14 πούλια που πρέπει να διασχίσουν ολόκληρο αυτό το κομμάτι.</div></li>
+    <li><div><b>Μην αφήνεις ποτέ μια μεγάλη στοίβα κολλημένη πίσω από το τείχος του.</b> Μετά από δέκα γύρους, όσοι είχαν ακόμη 8 ή περισσότερα πούλια στην αφετηρία κέρδισαν μόνο το <span class="num">36%</span> των φορών.</div></li>
+    <li><div><b>Υπολόγιζε το μαρς.</b> Περίπου οι μισές παρτίδες τελειώνουν χωρίς ο χαμένος να έχει μαζέψει ούτε ένα πούλι. Αν είσαι πίσω, μάζεψε ένα πούλι. Αν είσαι μπροστά, κράτα τον υπολογιστή κλειδωμένο.</div></li>
+  </ol>
+</section>
+
+<section class="card" id="map-el">
+  <p class="kicker">Προσανατολισμός</p>
+  <h2>Το ταμπλό από τη μεριά σου</h2>
+  <p>Οι αριθμοί είναι οι <b>δικές σου</b> θέσεις, οι ίδιοι που τυπώνονται στο πλαίσιο (Settings → Point numbers). Τις μετράς με τη σειρά που
+  τις διανύεις: η αφετηρία σου είναι το 1 και η τελευταία θέση του σπιτιού σου το 24. Το ταμπλό γυρίζει ώστε η αφετηρία σου να είναι πάντα
+  απέναντι δεξιά και το σπίτι σου κοντά σου δεξιά, με όποιο χρώμα κι αν παίζεις. Οι κανόνες το περιγράφουν ως κούρσα 24 θέσεων, στρατηγικά όμως το ταμπλό
+  έχει τέσσερα τεταρτημόρια, και το καθένα κάνει διαφορετική δουλειά για σένα:</p>
+  <div class="fig" data-fig="boardMap"></div>
+  <div class="legend"><span><i style="background:var(--gold)"></i>η διαδρομή σου, 1 → 24 και μετά μάζεμα</span>
+    <span><i style="background:var(--silver)"></i>η διαδρομή του υπολογιστή, από το δικό σου 13 γύρω ως το σπίτι του, στις θέσεις σου 7–12</span></div>
+  <ul>
+    <li><b>Το σπίτι σου, 19–24 (κοντά δεξιά).</b> Τα πούλια του υπολογιστή περνούν από εδώ <em>νωρίς</em>, στο πρώτο μισό της διαδρομής τους.
+      Οι θέσεις που κρατάς εδώ φρενάρουν όλο του τον στρατό από την αρχή.</li>
+    <li><b>Το τεταρτημόριο της αφετηρίας σου, 1–6 (απέναντι δεξιά).</b> Είναι το τελευταίο κομμάτι πριν από το σπίτι του υπολογιστή, οπότε
+      κάθε πούλι του πρέπει να το διασχίσει κοντά στο τέλος της διαδρομής του. Είναι επίσης το μόνο τεταρτημόριο που <b>δεν επιτρέπεται ποτέ να
+      γεμίσεις</b>: απαγορεύεται να κρατάς και τις έξι θέσεις 1–6.</li>
+    <li><b>Το σπίτι του υπολογιστή, 7–12 (απέναντι αριστερά).</b> Φτάνει εκεί μόνο στο τέλος. Οι θέσεις σου εδώ μετράνε αργά στην παρτίδα.</li>
+    <li><b>Η αφετηρία του υπολογιστή, 13.</b> Όσο στέκεται έστω και ένα πούλι του στο 13, δεν μπορείς να πατήσεις εκεί. Ο δρομέας σου πρέπει να το πηδήξει.</li>
+  </ul>
+</section>
+
+<section class="card" id="runner-el">
+  <p class="kicker">Φάση 1 · το άνοιγμα</p>
+  <h2>Ο δρομέας</h2>
+  <p>Μέχρι να περάσει ένα πούλι σου την αφετηρία του υπολογιστή (τη θέση σου 13), μπορείς να κινείς <b>μόνο αυτό το ένα πούλι</b>. Πρέπει να
+  φτάσει στη θέση 14 ή πιο πέρα, δηλαδή να διανύσει 13 βήματα χωρίς να σταματήσει ποτέ στο 13. Τα άλλα 14 πούλια σου περιμένουν στο 1 ώσπου να τα καταφέρει.</p>
+  <div class="facts">
+    <div class="fact"><div class="big">58%</div><div class="lbl">ποσοστό νίκης για την πλευρά της οποίας ο δρομέας ξεφεύγει πρώτος (58,7% στο Advanced, 57,7% στο Expert)</div></div>
+    <div class="fact"><div class="big">54%</div><div class="lbl">ποσοστό νίκης για όποιον παίζει πρώτος (55,9% στο Advanced, 53,0% στο Expert)</div></div>
+    <div class="fact"><div class="big">5-5</div><div class="lbl">η μόνη πρώτη ζαριά που ελευθερώνει αμέσως τον δρομέα: 1 → 6 → 11 → 16</div></div>
+  </div>
+  <h3>Πρώτη ζαριά: ποσοστό νίκης όποιου παίζει πρώτος</h3>
+  <div class="rolls" data-fig="rolls" aria-label="Ποσοστό νίκης ανά πρώτη ζαριά"></div>
+  <p class="cap">Advanced εναντίον Advanced, 1.500 παρτίδες ανά ζαριά (±1,3 μονάδες). Αυτό που μετράει είναι πόσο μακριά φτάνει ο δρομέας: όταν
+  φτάνει στο 11–12 κερδίζει περίπου 60%, ενώ αν σταματήσει στο 4–6 είναι μόλις λίγο καλύτερο από κορόνα-γράμματα.</p>
+  <div class="callout warn"><b>Η παγίδα των διπλών.</b> Οι μεγάλες διπλές πέφτουν πάνω στη στοίβα του 13 και χάνουν ζάρια. Με 6-6 παίζεται μόνο
+  ένα εξάρι (1 → 7, μετά το 13 είναι κλειστό), με 4-4 μόνο δύο τεσσάρια (ως το 9), με 3-3 μόνο τρία τριάρια (ως το 10). Οι 2-2 και 5-5 παίζονται ολόκληρες.</div>
+  <h3>Τι μπορείς ακόμη να αποφασίσεις</h3>
+  <ul>
+    <li>Με δύο διαφορετικά ζάρια η σειρά μερικές φορές μετράει, γιατί η ενδιάμεση στάση δεν μπορεί να είναι στο 13. Το παιχνίδι σού προσφέρει μόνο τις σειρές που επιτρέπονται.</li>
+    <li>Μόλις ο δρομέας περάσει το 13 στη μέση της κίνησής σου, όποιο ζάρι απομένει είναι ελεύθερο. Μπορείς ήδη να βγάλεις ένα <b>δεύτερο πούλι</b>
+      από το 1 και να αρχίσεις να χτίζεις.</li>
+    <li>Η επιλογή <b>Opening throw</b> (Settings → Play) βάζει τον νικητή της πρώτης ρίψης να παίξει τα δύο ζάρια της. Έτσι η πρώτη κίνηση δεν μπορεί
+      να είναι διπλή: ούτε ξεκίνημα με 5-5, αλλά ούτε και χαμένο 6-6.</li>
+  </ul>
+</section>
+
+<section class="card" id="wall-el">
+  <p class="kicker">Φάση 2 · το μέσο της παρτίδας</p>
+  <h2>Χτίσε το τείχος</h2>
+  <p><b>Τείχος</b> είναι μια σειρά από συνεχόμενες θέσεις σου, με πούλια του υπολογιστή ακόμη πίσω του που πρέπει να το περάσουν. Ένα πούλι
+  αρκεί για να κρατήσει μια θέση, οπότε ένα τείχος σού κοστίζει ελάχιστα. Για τον υπολογιστή είναι φράχτης: ένα πούλι που έχει μπροστά του έξι
+  κλειστές θέσεις δεν μπορεί να κινηθεί καθόλου.</p>
+  <h3>Μακρύτερο τείχος της παρτίδας → ποσοστό νίκης</h3>
+  <div class="bars" data-fig="wallBars"></div>
+  <p class="cap">Advanced εναντίον Advanced, 3.000 παρτίδες (6.000 πλευρές). Οι παρτίδες του Expert δίνουν την ίδια καμπύλη: 47% στις 6, 68% στις 8.</p>
+  <p>Το άλμα από <span class="num">11%</span> στις πέντε σε <span class="num">45%</span> στις έξι και <span class="num">73%</span> στις οκτώ είναι
+  όλη η παρτίδα σε μία εικόνα. Σε αυτή την αναμέτρηση, μια πλευρά που δεν ξεπέρασε ποτέ τις τέσσερις συνεχόμενες θέσεις κέρδισε λιγότερο από <span class="num">1%</span>.</p>
+
+  <h3>Πού χτίζει ο Expert</h3>
+  <p>Το ποσοστό των παρτίδων όπου ο Expert κρατούσε κάθε θέση μετά τον δέκατο γύρο του (300 παρτίδες, και οι δύο πλευρές):</p>
+  <div class="fig" data-fig="heatMap"></div>
+  <p class="cap">Όσο πιο έντονο το χρυσό, τόσο πιο συχνά κρατούσε ο Expert εκείνη τη θέση. Το 1 είναι η στοίβα της αφετηρίας. Το 13 δεν
+  κρατιέται ποτέ τόσο νωρίς, γιατί εκεί βρίσκεται ακόμη η στοίβα της αφετηρίας του υπολογιστή.</p>
+  <ul>
+    <li>Το περισσότερο χτίσιμο γίνεται στις <b>4–5 (64–65%)</b>, <b>3 (58%)</b>, <b>7 (54%)</b> και <b>2 (52%)</b>. Είναι ένας φράχτης κατά
+      μήκος του τελευταίου κομματιού πριν από το σπίτι του υπολογιστή και των δύο εξωτερικών θέσεων του σπιτιού του, που τα περισσότερα πούλια του πρέπει ακόμη να περάσουν.</li>
+    <li>Οι <b>7–8</b> προεκτείνουν τον φράχτη έξω από το τεταρτημόριο της αφετηρίας. Αφού δεν επιτρέπεται να κρατάς και τις έξι θέσεις 1–6,
+      όσο υπάρχουν ακόμη πούλια στο 1 το τείχος μεγαλώνει προς τα εμπρός, στο 7 και στο 8.</li>
+    <li>Η θέση <b>24 (47%)</b> κρατιέται εκπληκτικά συχνά. Ένα πούλι παρκαρισμένο στο βάθος του σπιτιού σου εξακολουθεί να μπλοκάρει: είναι η
+      θέση 12 του υπολογιστή, μια στάση που τα πούλια του χρειάζονται νωρίς στον δρόμο τους.</li>
+    <li>Οι βαθιές θέσεις του σπιτιού του υπολογιστή (10–12, κρατημένες 11–23%) συνήθως <b>μένουν ελεύθερες</b> νωρίς. Το να κρατάς περισσότερες
+      από τις 7–12 μετά από δέκα γύρους δεν προέβλεπε νίκες: με 0 έως 4 θέσεις εκεί, τα ποσοστά νίκης ήταν από 48% έως 54%.</li>
+  </ul>
+
+  <div class="callout"><b>Έξι στη σειρά επιτρέπονται.</b> Μπορείς να κρατάς έξι ή περισσότερες συνεχόμενες θέσεις οπουδήποτε, εκτός από το
+  τεταρτημόριο της αφετηρίας σου (και τις έξι θέσεις 1–6). Υπάρχει ένα όριο: αν όλα τα πούλια του υπολογιστή στο ταμπλό βρεθούν στη μία θέση
+  ακριβώς πίσω από τις έξι σου, η επόμενη κίνησή σου πρέπει να ανοίξει μία από αυτές για να μπορέσει να κινηθεί ξανά. Σε 3.000 δοκιμαστικές
+  παρτίδες αυτό δεν συνέβη ποτέ, οπότε στην πράξη το τείχος σου μπορεί να συνεχίσει να μεγαλώνει.</div>
+</section>
+
+<section class="card" id="trapped-el">
+  <p class="kicker">Φάση 2 · η άλλη όψη</p>
+  <h2>Μείνε ευκίνητος</h2>
+  <p>Ο υπολογιστής χτίζει κι αυτός τείχος εναντίον σου, στις θέσεις σου 14–20 (τις δικές του 2–8). Η χειρότερη κατάσταση στη φεύγα είναι μια
+  <b>ψηλή στοίβα πίσω από αυτό το τείχος</b>: σε κάθε γύρο που δεν μπορεί να κινηθεί, τα υπόλοιπα πούλια σου αναγκάζονται να παίξουν τα ζάρια, και το στήσιμό σου διαλύεται.</p>
+  <div class="facts">
+    <div class="fact"><div class="big">36%</div><div class="lbl">νίκες με 8 ή περισσότερα πούλια ακόμη στην αφετηρία μετά από δέκα γύρους (2.173 περιπτώσεις)</div></div>
+    <div class="fact"><div class="big">61%</div><div class="lbl">νίκες με 4–7 ακόμη στην αφετηρία (2.593 περιπτώσεις)</div></div>
+    <div class="fact"><div class="big">51%</div><div class="lbl">νίκες με 0–3 ακόμη στην αφετηρία (1.234 περιπτώσεις)</div></div>
+  </div>
+  <p class="cap">Advanced εναντίον Advanced, 3.000 παρτίδες. Είναι συσχετίσεις, όχι απόδειξη, αλλά το μοτίβο βγάζει νόημα: βγάζε πούλια σταθερά,
+  και κράτα μερικά πίσω ως εφεδρικές κινήσεις για τους γύρους που όλα τα άλλα είναι μπλοκαρισμένα.</p>
+  <ul>
+    <li><b>Κοίτα έξι βήματα μπροστά από κάθε στοίβα.</b> Μέτρα πόσες από εκείνες τις θέσεις κρατά ο υπολογιστής. Μία ή δύο κλειστές είναι φυσιολογικό· τέσσερις ή περισσότερες είναι συναγερμός.</li>
+    <li><b>Άπλωσε, μη στοιβάζεις.</b> Μια θέση θέλει μόνο ένα πούλι. Ένα τέταρτο ή πέμπτο πούλι στην ίδια θέση έξω από το σπίτι δεν μπλοκάρει
+      τίποτα παραπάνω και είναι ένα ακόμη πούλι που θα πρέπει αργότερα να περάσει τον υπολογιστή.</li>
+    <li><b>Συμφωνεί και ο αυτόματος συντονισμός.</b> Όταν ο υπολογιστής ρύθμισε την κρίση του παίζοντας με τον εαυτό του, η μεγαλύτερη αλλαγή ήταν
+      να μετράει <b>κάθε επιπλέον πούλι μιας μπλοκαρισμένης στοίβας</b> πάνω από τρεις φορές βαρύτερα (0,3 → 1,0). Αυτή η εκδοχή πήρε το 60% των
+      πόντων απέναντι στη χειροκίνητα ρυθμισμένη, και είναι αυτή που παίζει σήμερα ως Advanced και Expert.</li>
+  </ul>
+</section>
+
+<section class="card" id="end-el">
+  <p class="kicker">Φάση 3 · το τέλος</p>
+  <h2>Κούρσα, μάζεμα και μαρς</h2>
+  <div class="facts">
+    <div class="fact"><div class="big">45%</div><div class="lbl">των παρτίδων Expert εναντίον Expert τελειώνουν με μαρς (60% στο Advanced)</div></div>
+    <div class="fact"><div class="big">≈100</div><div class="lbl">γύροι σε μια τυπική παρτίδα, περίπου 50 ζαριές ο καθένας</div></div>
+  </div>
+  <ul>
+    <li><b>Πρόσεχε τα pips</b> στον πίνακα σκορ (και οι δύο ξεκινούν από 360). Μόλις καμία πλευρά δεν μπλοκάρει την άλλη, είναι καθαρή κούρσα και κερδίζει ο μικρότερος αριθμός.</li>
+    <li><b>Είσαι πίσω; Μάζεψε ένα πούλι.</b> Η ήττα είναι 1 πόντος, το μαρς 2. Όταν η κούρσα έχει χαθεί, φέρε τα πούλια σου στο σπίτι και μάζεψε
+      ένα όσο πιο νωρίς μπορείς. Έτσι μια ήττα 2 πόντων γίνεται ήττα 1 πόντου, και σε ματς στους 5 ένας πόντος είναι το ένα πέμπτο του ματς.</li>
+    <li><b>Είσαι μπροστά και ο υπολογιστής είναι ακόμη κολλημένος;</b> Μην ανοίξεις την πόρτα νωρίς. Κάθε γύρος που αντέχει το τείχος σου είναι
+      ένας γύρος που τα πίσω πούλια του μένουν έξω από το σπίτι του, και έτσι μια νίκη 1 πόντου γίνεται μαρς.</li>
+    <li><b>Μάζεμα:</b> ένα μεγαλύτερο ζάρι μπορεί να μαζέψει πούλι από την ψηλότερη θέση σου, οπότε ένα σπίτι απλωμένο σε πολλές θέσεις χάνει λιγότερα βήματα από μια ψηλή στοίβα στο 19, στην αρχή του σπιτιού σου.</li>
+  </ul>
+</section>
+
+<section class="card" id="learn-el">
+  <p class="kicker">Εξάσκηση</p>
+  <h2>Μαθαίνοντας με την εφαρμογή</h2>
+  <ul>
+    <li><b>Hint (H)</b>: δείχνει την κίνηση που θα έπαιζε ο Expert με τα ζάρια σου. Ζήτα την πριν κινηθείς· αν έχεις ήδη παίξει ένα ζάρι, πρέπει πρώτα να το αναιρέσεις (Undo).</li>
+    <li><b>Ο κύριος Μάκης (Mr. Makis, M)</b> είναι ο προπονητής επιπέδου 10. Παίζει την κίνησή του πάνω στο ταμπλό και την εξηγεί από τη θέση:
+      νέες θέσεις, το τείχος, πόσα πούλια του υπολογιστή είναι ακόμη πίσω του. Δείχνει επίσης τις δύο επόμενες επιλογές με εκτιμώμενα ποσοστά νίκης
+      από 120 δοκιμαστικές παρτίδες η καθεμία. Απέναντι στον Expert κέρδισε 23 παρτίδες έναντι 17. Κράτα την κίνησή του ή πάρ' την πίσω και παίξε τη δική σου.</li>
+    <li><b>Games → Replay</b>: ξαναδές τις πέντε τελευταίες παρτίδες σου κίνηση προς κίνηση και ρώτα τον εαυτό σου πού σταμάτησε να μεγαλώνει το τείχος σου ή πότε κόλλησε η στοίβα σου.</li>
+    <li><b>Ανέβαινε επίπεδα.</b> Στις δοκιμές κάθε επίπεδο νίκησε το προηγούμενο: Novice 77%, Intermediate 82%, Advanced 64%, Expert 60%.
+      Όταν κερδίζεις τακτικά τον Advanced, ο Expert είναι ένα δίκαιο τεστ.</li>
+  </ul>
+</section>
+
+<footer id="method-el">
+  <h3>Πώς μετρήθηκαν</h3>
+  <p>Όλοι οι αριθμοί προέρχονται από τη μηχανή του ίδιου του παιχνιδιού (<code>src/engine.js</code>), που έπαιξε με τον εαυτό της στις
+  2 Οκτωβρίου 2026 με σταθερούς σπόρους τυχαιότητας: 3.000 παρτίδες Advanced εναντίον Advanced (μήκος τείχους, στοίβα αφετηρίας, πρώτη κίνηση, μαρς),
+  300 παρτίδες Expert εναντίον Expert (κατάληψη θέσεων, πούλια που πρέπει ακόμη να διασχίσουν το 2–8, και ο έλεγχος των υπόλοιπων αριθμών στο Expert)
+  και 1.500 παρτίδες Advanced για καθεμία από τις 21 πρώτες ζαριές. «Ο δρομέας ξεφεύγει πρώτος» σημαίνει την πρώτη πλευρά με πούλι στη θέση της 14
+  ή πιο πέρα. «Τείχος» σημαίνει τη μακρύτερη σειρά συνεχόμενων θέσεων μιας πλευράς με πούλι του αντιπάλου ακόμη πίσω της. Είναι στατιστικά
+  υπολογιστή εναντίον υπολογιστή: δείχνουν τι κερδίζει ανάμεσα σε δυνατούς παίκτες, δεν αποτελούν λύση του παιχνιδιού.</p>
+</footer>
+</div>
+</div>
+
+<script>
+// Back: when the game opened this page in a new tab, close it so the game tab (and its state) is where you return.
+// Inside the Android app the guide is a sheet over the game (an iframe): ask the game to close it.
+document.getElementById('back').addEventListener('click', (e) => {
+  if (window.parent !== window) { e.preventDefault(); window.parent.postMessage('fevga:close-strategy', location.origin); return; }
+  if (window.opener && !window.opener.closed) { e.preventDefault(); window.close(); }
+});
+
+const NS = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs, text) => {
+  const n = document.createElementNS(NS, tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (text != null) n.textContent = text;
+  return n;
+};
+
+// Board geometry in the engine's own numbering r (start = 24): far row left->right 13..24, near
+// row left->right 12..1. Data (HEAT, OPEN) is keyed by r too; every number drawn is shown as
+// 25 - r, the player's numbering (start = 1 far right, home 19-24 near right), as in the game.
+const W = 760, PX = 24, PW = 52, BAR = 36, TOP = 54, PH = 150, GAP = 84;
+const colX = (c) => PX + c * PW + (c >= 6 ? BAR : 0);
+const BOT = TOP + PH * 2 + GAP;       // bottom edge of the near row
+const H = BOT + 54;
+const pointCol = (r) => (r >= 13 ? { c: r - 13, top: true } : { c: 12 - r, top: false });
+
+// Text drawn by script, per language. Greek capitals carry no accents.
+const T = {
+  en: { home: "COMPUTER'S HOME · 7–12", startQ: 'YOUR START QUARTER · 1–6', cStart: "COMPUTER'S START IS 13", yourHome: 'YOUR HOME · 19–24',
+    mapAria: 'Board map with quarters and paths', heatAria: 'Board heat map of points held by the Expert',
+    to: (n) => `to ${n}`, inRow: (k) => `${k} in a row` },
+  el: { home: 'ΣΠΙΤΙ ΥΠΟΛΟΓΙΣΤΗ · 7–12', startQ: 'Η ΑΦΕΤΗΡΙΑ ΣΟΥ · 1–6', cStart: 'Ο ΥΠΟΛΟΓΙΣΤΗΣ ΞΕΚΙΝΑ ΑΠΟ ΤΟ 13', yourHome: 'ΤΟ ΣΠΙΤΙ ΣΟΥ · 19–24',
+    mapAria: 'Χάρτης του ταμπλό με τεταρτημόρια και διαδρομές', heatAria: 'Θερμικός χάρτης των θέσεων που κρατά ο Expert',
+    to: (n) => `ως το ${n}`, inRow: (k) => `${k} στη σειρά` },
+};
+const pctFmt = (lang, v, d) => v.toLocaleString(lang, { minimumFractionDigits: d, maximumFractionDigits: d }) + '%';
+let svgN = 0;
+
+function board(host, lang, { heat, labels }) {
+  const t = T[lang];
+  const u = `b${++svgN}-`;   // ids must be unique per SVG: Chrome won't paint a gradient defined inside a hidden copy
+  const svg = el('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': heat ? t.heatAria : t.mapAria });
+  const defs = el('defs', {});
+  defs.innerHTML = `
+    <linearGradient id="${u}wd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4a2e1a"/><stop offset="1" stop-color="#2a190d"/></linearGradient>
+    <linearGradient id="${u}fd" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5b3b22"/><stop offset=".5" stop-color="#4b301b"/><stop offset="1" stop-color="#5b3b22"/></linearGradient>
+    <radialGradient id="${u}ckw" cx=".38" cy=".32"><stop offset="0" stop-color="#fffaf0"/><stop offset="1" stop-color="#cdbd9f"/></radialGradient>
+    <radialGradient id="${u}ckb" cx=".38" cy=".32"><stop offset="0" stop-color="#6a4630"/><stop offset="1" stop-color="#140a05"/></radialGradient>
+    <marker id="${u}ag" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#e8b75a"/></marker>
+    <marker id="${u}as" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#b9c3cc"/></marker>`;
+  svg.append(defs);
+  const fx = PX - 12, fw = 12 * PW + BAR + 24;
+  svg.append(el('rect', { x: fx, y: TOP - 30, width: fw, height: BOT - TOP + 60, rx: 14, fill: `url(#${u}wd)` }));
+  svg.append(el('rect', { x: PX, y: TOP, width: 6 * PW, height: BOT - TOP, fill: `url(#${u}fd)` }));
+  svg.append(el('rect', { x: colX(6), y: TOP, width: 6 * PW, height: BOT - TOP, fill: `url(#${u}fd)` }));
+  svg.append(el('rect', { x: PX + 6 * PW, y: TOP - 30, width: BAR, height: BOT - TOP + 60, fill: '#24160c' }));
+
+  for (let r = 1; r <= 24; r++) {
+    const { c, top } = pointCol(r);
+    const x = colX(c);
+    const base = top ? TOP : BOT, apex = top ? TOP + PH : BOT - PH;
+    let fill = r % 2 ? '#7a4c2a' : '#d4bb92';
+    if (heat) {
+      const v = heat[r] / 100;
+      fill = r === 12 ? '#3a2a1e' : `rgba(240,190,95,${0.08 + 0.92 * v})`;
+    }
+    svg.append(el('path', { d: `M${x + 2} ${base} L${x + PW - 2} ${base} L${x + PW / 2} ${apex} Z`, fill,
+      stroke: heat ? 'rgba(255,226,170,.25)' : 'none', 'stroke-width': 1 }));
+    const ny = top ? TOP - 10 : BOT + 22;
+    svg.append(el('text', { x: x + PW / 2, y: ny, 'text-anchor': 'middle', fill: '#e8c98a', 'font-size': 15,
+      'font-family': 'Georgia, serif', 'font-weight': 600 }, String(25 - r)));
+    if (heat) {
+      const ty = top ? TOP + 30 : BOT - 22;
+      svg.append(el('text', { x: x + PW / 2, y: ty, 'text-anchor': 'middle', fill: heat[r] > 45 ? '#2a1a06' : '#f3e9d8',
+        'font-size': 13, 'font-weight': 600 }, r === 12 ? '–' : `${heat[r]}%`));
+    }
+  }
+
+  if (labels) {
+    const q = (x, y, t) => svg.append(el('text', { x, y, 'text-anchor': 'middle', fill: '#b6a78f', 'font-size': 12, 'letter-spacing': '1.5' }, t));
+    q(PX + 3 * PW, 14, t.home);
+    q(colX(6) + 3 * PW, 14, t.startQ);
+    q(PX + 3 * PW, H - 4, t.cStart);
+    q(colX(6) + 3 * PW, H - 4, t.yourHome);
+    // start stacks
+    const stack = (r, fill, n) => {
+      const { c, top } = pointCol(r);
+      const cx = colX(c) + PW / 2;
+      for (let i = 0; i < 5; i++) {
+        const cy = top ? TOP + 22 + i * 40 / 2 : BOT - 22 - i * 40 / 2;
+        svg.append(el('circle', { cx, cy, r: 20, fill, stroke: 'rgba(0,0,0,.45)', 'stroke-width': 1.5 }));
+      }
+      const ly = top ? TOP + 22 + 4 * 20 + 5 : BOT - 22 - 4 * 20 + 5;
+      svg.append(el('text', { x: cx, y: ly, 'text-anchor': 'middle', 'font-size': 14, 'font-weight': 700,
+        fill: r === 24 ? '#3a2614' : '#f3e9d8' }, String(n)));
+    };
+    stack(24, `url(#${u}ckw)`, 15);
+    stack(12, `url(#${u}ckb)`, 15);
+    // paths in the middle strip: gold = you (top lane leftwards, bottom lane rightwards), silver = computer
+    const g0 = TOP + PH, L = PX + 8, R = colX(11) + PW - 8;
+    const gt = g0 + 14, st = g0 + 32, sb = g0 + GAP - 32, gb = g0 + GAP - 14;
+    svg.append(el('path', { d: `M${R} ${gt} L${L + 14} ${gt} Q${L - 2} ${gt} ${L - 2} ${(gt + gb) / 2} Q${L - 2} ${gb} ${L + 14} ${gb} L${R + 4} ${gb}`,
+      fill: 'none', stroke: '#e8b75a', 'stroke-width': 3, 'marker-end': `url(#${u}ag)` }));
+    svg.append(el('circle', { cx: R, cy: gt, r: 5, fill: '#e8b75a' }));
+    svg.append(el('path', { d: `M${L + 30} ${sb} L${R - 14} ${sb} Q${R - 2} ${sb} ${R - 2} ${(st + sb) / 2} Q${R - 2} ${st} ${R - 14} ${st} L${L + 24} ${st}`,
+      fill: 'none', stroke: '#b9c3cc', 'stroke-width': 2.5, 'stroke-dasharray': '7 5', 'marker-end': `url(#${u}as)` }));
+    svg.append(el('circle', { cx: L + 30, cy: sb, r: 4.5, fill: '#b9c3cc' }));
+  }
+  host.append(svg);
+}
+
+// Expert, own point held after its 10th turn (% of 600 sides, 300 games)
+const HEAT = [0, 47, 25, 16, 14, 14, 31, 26, 23, 22, 21, 20, 0, 11, 13, 23, 34, 50, 54, 47, 65, 64, 58, 52, 99];
+
+// Opening rolls: first mover's win % (Advanced v Advanced, 1,500 games each); note = where the runner stops
+const OPEN = { '1-1': [49.9, 20], '1-2': [50.3, 21], '1-3': [53.3, 20], '1-4': [51.3, 19], '1-5': [53.3, 18], '1-6': [53.6, 17],
+  '2-2': [58.7, 16], '2-3': [52.9, 19], '2-4': [53.2, 18], '2-5': [52.9, 17], '2-6': [56.3, 16],
+  '3-3': [59.9, 15], '3-4': [55.5, 17], '3-5': [56.1, 16], '3-6': [57.3, 15],
+  '4-4': [56.3, 16], '4-5': [55.7, 15], '4-6': [58.9, 14], '5-5': [71.6, 9], '5-6': [62.3, 13], '6-6': [56.3, 18] };
+function rollGrid(host, lang) {
+  const cell = (cls, html, style) => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; if (style) d.style.cssText = style; host.append(d); };
+  cell('h', '');
+  for (let b = 1; b <= 6; b++) cell('h', b);
+  for (let a = 1; a <= 6; a++) {
+    cell('h', a);
+    for (let b = 1; b <= 6; b++) {
+      if (b < a) { cell('x', ''); continue; }
+      const [w, at] = OPEN[`${a}-${b}`];
+      const t = Math.max(0, Math.min(1, (w - 49) / 23));
+      cell('c', `<b>${w.toFixed(0)}%</b><span>${T[lang].to(25 - at)}</span>`, `background:rgba(232,183,90,${0.06 + 0.6 * t})`);
+    }
+  }
+}
+
+// Longest wall reached -> win % (Advanced v Advanced, 3,000 games = 6,000 sides)
+const WALL = [['≤ 3', 0.4, 265], ['4', 1.1, 452], ['5', 11.2, 556], ['6', 44.7, 1663], ['7', 63.3, 1434], ['8', 72.9, 902], ['9', 79.5, 473], ['10+', 96.9, 255]];
+function wallBars(host, lang) {
+  for (const [k, v, n] of WALL) {
+    host.insertAdjacentHTML('beforeend', `<span class="k">${T[lang].inRow(k)}</span><div class="track"><div class="fill" style="width:${Math.max(v, 1)}%"></div></div>` +
+      `<span class="v">${pctFmt(lang, v, v < 10 ? 1 : 0)} <small>(${n.toLocaleString(lang)})</small></span>`);
+  }
+}
+
+for (const host of document.querySelectorAll('[data-fig]')) {
+  const lang = host.closest('[data-lang]').dataset.lang;
+  const fig = host.dataset.fig;
+  if (fig === 'boardMap') board(host, lang, { labels: true });
+  else if (fig === 'heatMap') board(host, lang, { heat: HEAT });
+  else if (fig === 'rolls') rollGrid(host, lang);
+  else if (fig === 'wallBars') wallBars(host, lang);
+}
+
+// Language: ?lang=el|en wins, then the last choice on this browser, then the browser's own language.
+const TITLES = { en: 'Fevga - Strategy guide', el: 'Φεύγα - Οδηγός στρατηγικής' };
+function setLang(lang, remember) {
+  for (const n of document.querySelectorAll('[data-lang]')) n.hidden = n.dataset.lang !== lang;
+  for (const b of document.querySelectorAll('[data-set-lang]')) {
+    b.classList.toggle('on', b.dataset.setLang === lang);
+    b.setAttribute('aria-pressed', b.dataset.setLang === lang);
+  }
+  document.documentElement.lang = lang;
+  document.title = TITLES[lang];
+  if (remember) try { localStorage.setItem('fevga.strategy.lang', lang); } catch {}
+}
+for (const b of document.querySelectorAll('[data-set-lang]')) b.addEventListener('click', () => setLang(b.dataset.setLang, true));
+let initial = new URLSearchParams(location.search).get('lang');
+if (!T[initial]) { try { initial = localStorage.getItem('fevga.strategy.lang'); } catch { initial = null; } }
+if (!T[initial]) initial = (navigator.language || '').toLowerCase().startsWith('el') ? 'el' : 'en';
+setLang(initial, false);
+// A section link (#wall) opened in the other language: jump to that language's copy.
+if (location.hash) {
+  const id = location.hash.slice(1).replace(/-el$/, '');
+  const target = document.getElementById(initial === 'el' ? `${id}-el` : id);
+  if (target) target.scrollIntoView();
+}
+</script>
+</body>
+</html>

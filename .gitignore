@@ -1,0 +1,9 @@
+# Android wrapper: everything generated is rebuilt from app/ (see README, "Build the Android app")
+app/node_modules/
+app/www/
+app/android/
+dist/
+*.apk
+*.log
+.DS_Store
+Thumbs.db

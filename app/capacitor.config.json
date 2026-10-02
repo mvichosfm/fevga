@@ -1,0 +1,9 @@
+{
+  "appId": "org.vichos.fevga",
+  "appName": "Fevga",
+  "webDir": "www",
+  "backgroundColor": "#0b0807",
+  "android": {
+    "allowMixedContent": false
+  }
+}

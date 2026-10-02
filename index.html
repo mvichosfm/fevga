@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fevga - Greek Backgammon</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%233a2414'/%3E%3Ccircle cx='26' cy='26' r='15' fill='%233b2618' stroke='%231a0f08' stroke-width='2'/%3E%3Ccircle cx='38' cy='38' r='15' fill='%23f4ead8' stroke='%23c9b796' stroke-width='2'/%3E%3Ccircle cx='38' cy='38' r='9.5' fill='none' stroke='%23a8936f' stroke-width='1.2'/%3E%3C/svg%3E">
+<style>
+  :root { --gold:#e8b75a; --ink:#f3e9d8; --dim:#b6a78f; --glass:rgba(22,15,10,.66); --edge:rgba(255,226,170,.16); }
+  * { box-sizing: border-box; }
+  [hidden] { display:none !important; } /* panels below set display:flex, which would beat the attribute */
+  html, body { margin:0; height:100%; background:#0b0807; color:var(--ink); overflow:hidden;
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif; -webkit-user-select:none; user-select:none; }
+  #scene { position:fixed; inset:0; width:100vw; height:100vh; display:block; touch-action:none; }
+  /* photographic vignette over the render */
+  #vignette { position:fixed; inset:0; pointer-events:none;
+    background: radial-gradient(ellipse 75% 70% at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,0,0,.45) 100%); transition: background .6s; }
+  /* retro lamp: a tighter, darker vignette that pulls the eye onto the lit board */
+  #vignette.lamp { background: radial-gradient(ellipse 58% 60% at 50% 52%, rgba(0,0,0,0) 45%, rgba(0,0,0,.55) 80%, rgba(0,0,0,.85) 100%); }
+  .serif { font-family: Georgia, "Times New Roman", serif; }
+  .panel { background:var(--glass); border:1px solid var(--edge); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+    border-radius:14px; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+
+  #brand { position:fixed; top:max(16px, env(safe-area-inset-top)); left:16px; padding:12px 16px 14px; width:min(360px, calc(100vw - 32px)); }
+  #brand h1 { margin:0; font-size:30px; font-weight:600; letter-spacing:.02em; line-height:1.05; }
+  #brand h1 small { font-size:13px; color:var(--dim); font-family:"Segoe UI", system-ui, sans-serif; font-weight:400; letter-spacing:.06em; margin-left:6px; }
+  #brand .row { display:flex; gap:8px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+  #brand label { font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); width:100%; margin-bottom:-4px; }
+  select { font:inherit; font-size:14px; color:var(--ink); background:rgba(255,235,200,.08); border:1px solid var(--edge);
+    border-radius:10px; padding:8px 10px; cursor:pointer; flex:1; min-width:0; }
+  select option { background:#21170f; color:var(--ink); }
+  #seat button { flex:1; display:flex; align-items:center; justify-content:center; gap:8px; padding:7px 10px; }
+  #seat button .dot { width:13px; height:13px; }
+  #seat button.on { border-color:var(--gold); background:rgba(232,183,90,.16); box-shadow:0 0 0 1px var(--gold) inset; }
+
+  #board { position:fixed; top:max(16px, env(safe-area-inset-top)); right:16px; padding:12px 16px; min-width:240px; }
+  #round { position:fixed; top:max(16px, env(safe-area-inset-top)); left:50%; transform:translateX(-50%); padding:7px 18px 8px;
+    display:flex; align-items:baseline; gap:9px; white-space:nowrap; pointer-events:auto; }
+  #round .lbl { font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); }
+  #round b { font-size:24px; line-height:1; color:var(--ink); font-weight:600; min-width:1.2em; text-align:center; font-variant-numeric:tabular-nums; }
+  #round #roundSub { font-size:11.5px; color:var(--dim); }
+  #round.inline { position:static; transform:none; padding:0; gap:5px; background:none; border:0; box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none; }
+  #round.inline .lbl { font-size:inherit; letter-spacing:normal; text-transform:none; color:var(--dim); }
+  #round.inline b { font-size:inherit; color:var(--gold); min-width:0; }
+  #round.inline #roundSub { display:none; }
+  .side { display:grid; grid-template-columns: 18px 1fr auto; gap:2px 10px; align-items:center; padding:6px 8px; border-radius:10px; border:1px solid transparent; transition:.25s; }
+  .side.on { border-color:rgba(232,183,90,.55); background:rgba(232,183,90,.09); box-shadow:0 0 18px rgba(232,183,90,.15) inset; }
+  .dot { width:16px; height:16px; border-radius:50%; box-shadow:0 1px 3px rgba(0,0,0,.6), inset 0 -2px 3px rgba(0,0,0,.25); }
+  .dot.w { background:radial-gradient(circle at 35% 30%, #fffaf0, #d9cbb0); }
+  .dot.b { background:radial-gradient(circle at 35% 30%, #6a4630, #140a05); border:1px solid rgba(255,255,255,.15); }
+  .side .nm { font-weight:600; font-size:14px; }
+  .side .sc { font-family:Georgia, serif; font-size:26px; line-height:1; text-align:right; grid-row:span 2; }
+  .side .meta { grid-column:2; font-size:11.5px; color:var(--dim); }
+  #board .foot { display:flex; justify-content:space-between; align-items:center; margin-top:6px; font-size:11px; color:var(--dim); padding:0 8px; }
+  #board .foot b { color:var(--gold); font-weight:600; }
+  .link { background:none; border:none; color:var(--dim); text-decoration:underline; padding:0; font-size:11px; cursor:pointer; }
+  .link:hover { color:var(--ink); background:none; }
+
+  #bar { position:fixed; left:50%; transform:translateX(-50%); bottom:max(16px, env(safe-area-inset-bottom));
+    padding:10px 12px; width:min(640px, calc(100vw - 24px)); display:flex; flex-direction:column; gap:8px; align-items:center; }
+  #statusRow { display:flex; align-items:center; gap:10px; min-height:26px; justify-content:center; flex-wrap:wrap; text-align:center; }
+  #status { font-size:14.5px; }
+  #status b { color:var(--gold); }
+  #chips { display:flex; gap:3px; }
+  .chip { font-size:26px; line-height:1; color:#f6eedd; text-shadow:0 1px 4px rgba(0,0,0,.6); transition:opacity .2s; }
+  .chip.used { opacity:.25; }
+  #buttons { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  button { font:inherit; font-size:14px; color:var(--ink); background:rgba(255,235,200,.08); border:1px solid var(--edge); border-radius:10px;
+    padding:9px 16px; cursor:pointer; transition:background .15s, transform .1s, border-color .15s, box-shadow .2s; }
+  button:hover:not(:disabled) { background:rgba(255,235,200,.18); border-color:rgba(255,226,170,.4); }
+  button:active:not(:disabled) { transform:translateY(1px); }
+  button:disabled { opacity:.35; cursor:default; }
+  button.primary { background:linear-gradient(#f0c46e,#d79a32); color:#2a1a06; border-color:#f5d48e; font-weight:600; }
+  button.primary:hover:not(:disabled) { background:linear-gradient(#f7d283,#e0a43c); }
+  button.ready { animation: glow 1.4s ease-in-out infinite; }
+  @keyframes glow { 50% { box-shadow:0 0 0 3px rgba(240,196,110,.35), 0 0 22px rgba(240,196,110,.45); } }
+  kbd { font-size:10px; opacity:.55; margin-left:6px; border:1px solid currentColor; border-radius:4px; padding:0 4px; }
+  .dots::after { content:''; animation: dots 1.2s steps(4) infinite; }
+  @keyframes dots { 0% { content:''; } 25% { content:'.'; } 50% { content:'..'; } 75% { content:'...'; } }
+
+  #toast { position:fixed; left:50%; bottom:calc(max(16px, env(safe-area-inset-bottom)) + 118px); transform:translate(-50%,8px); opacity:0; pointer-events:none;
+    transition:.25s; background:var(--glass); border:1px solid var(--edge); padding:9px 16px; border-radius:999px; font-size:13px; backdrop-filter: blur(8px);
+    max-width:calc(100vw - 32px); text-align:center; }
+  #toast.show { opacity:1; transform:translate(-50%,0); }
+  #muteBtn { position:fixed; right:16px; bottom:max(16px, env(safe-area-inset-bottom)); padding:9px 12px; }
+  #viewTools { position:fixed; right:16px; bottom:calc(max(16px, env(safe-area-inset-bottom)) + 52px); display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+  #camBtn { padding:7px 12px; font-size:13px; }
+  #camBtn.on { border-color:rgba(232,183,90,.5); }
+  #dimmerBox { display:flex; align-items:center; gap:8px;
+    padding:7px 12px; border-radius:12px; font-size:12px; color:var(--dim); cursor:default; }
+  #dimmerBox span:first-child { font-size:16px; color:var(--gold); }
+  #dimmer { width:110px; accent-color:var(--gold); cursor:pointer; }
+  #dimmerVal { min-width:34px; text-align:right; font-variant-numeric:tabular-nums; }
+  #help { position:fixed; left:16px; bottom:max(16px, env(safe-area-inset-bottom)); font-size:11.5px; color:var(--dim); max-width:200px; line-height:1.45; pointer-events:none; }
+
+  .modal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:16px;
+    background:radial-gradient(ellipse at center, rgba(10,7,5,.25), rgba(10,7,5,.7)); transition:opacity .35s; z-index:5; }
+  .modal.hidden { opacity:0; pointer-events:none; }
+  .sheet { padding:26px 30px; max-width:min(460px, 100%); text-align:center; }
+  .sheet h2 { margin:0 0 10px; font-size:30px; font-weight:600; }
+  .sheet p { margin:0 0 16px; color:var(--dim); line-height:1.55; }
+  #rules .sheet { max-width:min(600px, 100%); max-height:calc(100vh - 32px); overflow:auto; text-align:left; }
+  #rules h2 { text-align:center; }
+  #rules ul { padding-left:20px; margin:8px 0 16px; line-height:1.55; color:#e6dccb; font-size:14px; }
+  #rules li { margin-bottom:6px; }
+  #rules h3 { margin:14px 0 4px; font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); }
+  #settings .sheet { max-width:min(860px, 100%); max-height:calc(100vh - 32px); overflow:auto; text-align:left; }
+  #settings h2 { text-align:center; }
+  #settings h3 { margin:16px 0 8px; font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); }
+  #themeGrid { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); gap:12px; }
+  #themeGrid .card { display:flex; flex-direction:column; align-items:stretch; gap:4px; padding:8px 8px 10px; text-align:left; position:relative; }
+  #themeGrid canvas { width:100%; height:auto; border-radius:8px; display:block; margin-bottom:4px; }
+  #themeGrid .card.current { border-color:var(--gold); box-shadow:0 0 0 1px var(--gold) inset, 0 0 22px rgba(232,183,90,.2); }
+  #themeGrid .card.current::after { content:'✓'; position:absolute; top:14px; right:14px; width:24px; height:24px; border-radius:50%;
+    background:var(--gold); color:#2a1a06; font-weight:700; display:flex; align-items:center; justify-content:center; font-size:14px; }
+  #themeGrid .card.loading { opacity:.6; cursor:progress; }
+  #themeGrid .card.loading::before { content:'Preparing…'; position:absolute; top:14px; left:14px; background:var(--glass); padding:3px 10px; border-radius:999px; font-size:12px; }
+  .cn { font-weight:600; font-size:14px; display:flex; align-items:center; justify-content:space-between; gap:6px; }
+  .tag { font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); font-weight:500; border:1px solid var(--edge); border-radius:999px; padding:1px 8px; }
+  .cs { font-size:12px; color:var(--dim); line-height:1.4; }
+  .opt { display:flex; align-items:center; gap:10px; font-size:14px; padding:6px 2px; cursor:pointer; }
+  .opt input { width:18px; height:18px; accent-color:var(--gold); }
+  #settings .row { display:flex; gap:8px; justify-content:center; margin-top:16px; }
+  #games .sheet { max-width:min(720px, 100%); max-height:calc(100vh - 32px); overflow:auto; text-align:left; }
+  #games h2 { text-align:center; }
+  #games h3 { margin:16px 0 8px; font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); display:flex; justify-content:space-between; align-items:baseline; }
+  #games .cnt { font-size:11px; letter-spacing:.04em; text-transform:none; color:var(--dim); }
+  #games .row { display:flex; justify-content:center; margin-top:16px; }
+  .grow { display:flex; align-items:center; gap:12px; padding:9px 10px; border:1px solid var(--edge); border-radius:10px; margin-bottom:6px; background:rgba(255,235,200,.04); flex-wrap:wrap; }
+  .grow .gi { flex:1; min-width:200px; }
+  .grow .gn { font-weight:600; font-size:14px; }
+  .grow .gm { font-size:12px; color:var(--dim); margin-top:2px; }
+  .grow .ga { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .grow .ga button { padding:6px 12px; font-size:13px; }
+  .grow.editing input { flex:1; min-width:200px; font:inherit; font-size:14px; color:var(--ink); background:rgba(0,0,0,.3); border:1px solid var(--gold); border-radius:8px; padding:7px 10px; }
+  .grow .warn { font-size:13px; color:#f0b0a0; }
+  button.danger { background:#8a2a20; border-color:#c2554a; color:#fff; }
+  .empty { color:var(--dim); font-size:13px; margin:4px 2px 8px; }
+  button.resign { color:#f0b6a8; border-color:rgba(220,120,100,.35); background:rgba(160,60,40,.12); }
+  button.resign:hover:not(:disabled) { background:rgba(160,60,40,.25); border-color:rgba(230,140,120,.55); }
+  button.slam { color:#ffd2a0; border-color:rgba(240,140,60,.45); background:rgba(200,90,30,.16); font-weight:600; }
+  button.slam:hover:not(:disabled) { background:rgba(220,100,30,.32); border-color:rgba(255,160,80,.7); }
+  .sheet button.slam { margin-left:8px; }
+  #resignAsk { display:flex; align-items:center; gap:8px; flex-wrap:wrap; justify-content:center; font-size:13.5px; }
+  #resignAsk b { color:#f0b6a8; }
+  #resignAsk button { padding:7px 12px; }
+  .frow { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
+  .frow .cnt, #settings h3 .cnt { font-size:11px; letter-spacing:.04em; text-transform:none; color:var(--dim); font-weight:400; }
+  #settings h3 { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+  .vbgbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:10px; border:1px dashed var(--edge); border-radius:10px; font-size:12.5px; color:var(--dim); }
+  .vbgbar button { padding:7px 14px; font-size:13px; }
+  .vbgbar span { flex:1; min-width:220px; }
+  #replayBar { position:fixed; left:50%; transform:translateX(-50%); bottom:max(16px, env(safe-area-inset-bottom)); width:min(680px, calc(100vw - 24px));
+    padding:10px 14px; display:flex; flex-direction:column; gap:6px; z-index:3; }
+  #replayBar .rtop { display:flex; justify-content:space-between; gap:10px; font-size:13px; color:var(--dim); }
+  #replayTitle { color:var(--ink); font-size:15px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  #replayMove { font-size:15px; text-align:center; min-height:22px; }
+  #replaySlider { width:100%; accent-color:var(--gold); }
+  #replayBar .rbtns { display:flex; gap:6px; justify-content:center; flex-wrap:wrap; }
+  #replayBar .rbtns button { padding:7px 12px; }
+  button.makis { border-color:rgba(120,200,160,.45); background:rgba(90,170,130,.14); }
+  button.makis:hover:not(:disabled) { background:rgba(90,170,130,.26); border-color:rgba(140,220,180,.6); }
+  /* Android app (body.app): no file downloads; the strategy guide is a full-screen sheet */
+  body.app .web-only { display:none !important; }
+  #stratSheet { position:fixed; inset:0; z-index:60; background:#0b0807; }
+  #stratSheet iframe { width:100%; height:100%; border:0; display:block; }
+  #makis { position:fixed; left:16px; top:50%; transform:translateY(-50%); width:min(380px, calc(100vw - 32px)); max-height:calc(100vh - 220px);
+    overflow:auto; padding:14px 16px; z-index:4; border-color:rgba(120,200,160,.35); }
+  .mk-head { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .mk-avatar { width:38px; height:38px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:700;
+    background:radial-gradient(circle at 35% 30%, #9fe0bf, #2f6d50); color:#0d2a1d; box-shadow:0 2px 8px rgba(0,0,0,.4); flex:none; }
+  .mk-name { font-size:18px; font-weight:600; }
+  .mk-sub { font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:#8fd3b0; }
+  .mk-x { margin-left:auto; padding:2px 10px; font-size:18px; line-height:1; }
+  #makisBody { font-size:13.5px; line-height:1.5; }
+  #makisBody p { margin:6px 0; }
+  #makisBody ul { margin:4px 0 8px; padding-left:18px; }
+  #makisBody li { margin-bottom:4px; }
+  .mk-move { font-size:15px; }
+  .mk-move b, #makisBody li b { color:var(--gold); }
+  .mk-h { margin-top:10px; font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:#8fd3b0; }
+  .mk-foot { font-size:11.5px; color:var(--dim); margin-top:8px !important; }
+  .mk-btns { display:flex; gap:8px; margin-top:10px; }
+  @media (max-width:700px) { #makis { top:auto; bottom:calc(max(16px, env(safe-area-inset-bottom)) + 120px); transform:none; max-height:45vh; } }
+  #veil { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; background:#0b0807; z-index:9; transition:opacity .6s; }
+  #veil.hidden { opacity:0; pointer-events:none; }
+  #veil .t { font-family:Georgia, serif; font-size:42px; }
+  #veil .s { color:var(--dim); font-size:13px; letter-spacing:.12em; text-transform:uppercase; }
+
+  @media (max-width:900px) { #help { display:none; } }
+  @media (max-width:700px) {
+    kbd { display:none; }
+    #brand { padding:10px 12px; width:auto; right:72px; }
+    #brand h1 { font-size:22px; }
+    #brand .row { margin-top:6px; gap:6px; }
+    #brand label { display:none; }
+    #seat button, #brand select { padding:6px 8px; }
+    /* top is set from the brand panel's real height by positionHud() in main.js */
+    #board { left:16px; right:16px; min-width:0; padding:6px 8px; display:flex; flex-wrap:wrap; gap:4px; }
+    #board .side { flex:1; min-width:0; }
+    #board .foot { width:100%; }
+    .side .sc { font-size:20px; }
+    button { padding:8px 11px; }
+    #muteBtn { bottom:auto; top:max(16px, env(safe-area-inset-top)); right:16px; z-index:2; }
+    #viewTools { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 8px); }
+  }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div id="vignette"></div>
+
+<div id="brand" class="panel">
+  <h1 class="serif">Φεύγα<small>FEVGA · Greek tavli</small></h1>
+  <div class="row">
+    <label for="levelSel">Computer opponent</label>
+    <select id="levelSel" title="Computer difficulty"></select>
+  </div>
+  <div class="row" id="seat" role="group" aria-label="Your colour">
+    <label>You play</label>
+    <button data-color="0" class="on"><span class="dot w"></span>White</button>
+    <button data-color="1"><span class="dot b"></span>Black</button>
+  </div>
+  <div class="row">
+    <button id="newBtn">New game</button>
+    <button id="rulesBtn">Rules</button>
+    <button id="strategyBtn" title="Strategy guide (opens in a new tab)">Strategy</button>
+    <button id="settingsBtn" title="Board style, numbers, sound">⚙ Settings</button>
+    <button id="gamesBtn" title="Recent and saved games, replay">Games</button>  </div>
+</div>
+
+<div id="round" class="panel" hidden title="Round n = each side's n-th turn (Settings › Round counter)">
+  <span class="lbl">Round</span><b id="roundNum" class="serif">1</b><span id="roundSub"></span>
+</div>
+
+<div id="board" class="panel">
+  <div class="side" id="turnYou">
+    <span class="dot w" id="dotYou"></span><span class="nm">You</span><span class="sc" id="scoreYou">0</span>
+    <span class="meta">Pips <b id="pipYou">360</b> · Off <b id="offYou">0</b></span>
+  </div>
+  <div class="side" id="turnCpu">
+    <span class="dot b" id="dotCpu"></span><span class="nm">Computer</span><span class="sc" id="scoreCpu">0</span>
+    <span class="meta">Pips <b id="pipCpu">360</b> · Off <b id="offCpu">0</b></span>
+  </div>
+  <div class="foot"><span>Level: <b id="levelName"></b></span><b id="matchInfo" hidden></b><button class="link" id="resetScore">reset score</button></div>
+</div>
+
+<div id="stratSheet" hidden><iframe id="stratFrame" title="Strategy guide"></iframe></div>
+
+<div id="help">Click a glowing checker, then a highlighted point.<br>Camera locked · free camera in Settings.</div>
+<div id="toast"></div>
+
+<div id="bar" class="panel">
+  <div id="statusRow"><span id="chips"></span><span id="status">Setting up the board…</span></div>
+  <div id="buttons">
+    <button id="rollBtn" class="primary">Roll dice<kbd>Space</kbd></button>
+    <button id="undoBtn" hidden>Undo<kbd>U</kbd></button>
+    <button id="hintBtn" hidden>Hint<kbd>H</kbd></button>
+    <button id="makisBtn" class="makis" hidden title="Mr. Makis shows what a level-10 player would do, and why">Mr. Makis<kbd>M</kbd></button>
+    <button id="doneBtn" class="primary" hidden>Done<kbd>Enter</kbd></button>
+    <button id="resignBtn" class="resign" hidden title="Concede this game as a single (1 point) or double (2 points) loss">Admit loss</button>
+    <button id="slamBtn" class="slam" hidden title="Angry? Slam the board shut. Just for fun: the game carries on exactly where it was">Slam!<kbd>S</kbd></button>
+  </div>
+  <div id="resignAsk" hidden>
+    <span>Admit the loss? Choose what the computer scores:</span>
+    <button id="resignSingle" class="danger">Single loss (1 point)</button>
+    <button id="resignDouble" class="danger">Double loss (2 points)</button>
+    <button id="resignNo">Keep playing</button>
+  </div>
+</div>
+<button id="muteBtn" class="panel" title="Sound">🔊</button>
+<div id="viewTools">
+  <button id="camBtn" class="panel on" title="Allow turning and zooming the board (V)">🔒 View locked</button>
+  <label id="dimmerBox" class="panel" title="Room lighting — [ dimmer, ] brighter">
+    <span aria-hidden="true">☀</span>
+    <input type="range" id="dimmer" min="25" max="160" step="5" value="100" aria-label="Lighting">
+    <span id="dimmerVal">100%</span>
+  </label>
+</div>
+
+<div id="overlay" class="modal hidden">
+  <div class="sheet panel">
+    <h2 class="serif" id="ovTitle"></h2>
+    <p id="ovText"></p>
+    <button id="ovNew" class="primary">Play again</button><button id="ovSlam" class="slam" title="Just for fun (S)">Slam the board</button>
+  </div>
+</div>
+
+<div id="rules" class="modal hidden">
+  <div class="sheet panel">
+    <h2 class="serif">How to play Fevga</h2>
+    <h3>The race</h3>
+    <ul>
+      <li>Each side has 15 checkers, all starting on one point. Yours start in the <b>far right corner</b>; the computer's start in the near left corner. Choose white (ivory, the default) or black under <i>You play</i> — the board turns so your home is always near right.</li>
+      <li>Both sides travel counter-clockwise. You move right&nbsp;→&nbsp;left along the far side, then left&nbsp;→&nbsp;right along the near side into your home board (near right), and bear off.</li>
+      <li>Roll two dice and move by each number. Doubles are played four times.</li>
+      <li><b>Who starts:</b> each side throws one die and the higher starts — by rolling again, or (Settings → Play) by playing those two opening dice as the first move.</li>
+    </ul>
+    <h3>Fevga's special rules</h3>
+    <ul>
+      <li><b>No hitting.</b> A single checker owns its point: nobody may land on a point the opponent occupies.</li>
+      <li><b>The runner.</b> Until your first checker has passed the computer's starting point, you may move only that checker.</li>
+      <li><b>Six in a row is allowed</b> anywhere except your starting quarter (below).</li>
+      <li><b>Unblocking.</b> If every one of your opponent's checkers on the board is stuck on the single point right behind your six in a row, your move must open one of those six points so they get a chance to move. (Playing as many dice as you can still comes first.)</li>
+      <li><b>Keep your starting quarter open.</b> You may never occupy all six points of your starting quarter (your points 1–6).</li>
+      <li>Play both dice when you can; if only one can be played, it must be the larger.</li>
+    </ul>
+    <h3>Bearing off &amp; scoring</h3>
+    <ul>
+      <li>Once all 15 are in your home board, bear off by exact roll, or with a higher number from your highest point.</li>
+      <li>First to bear off all 15 wins <b>1 point</b>; <b>mars</b> (the loser has borne off none) scores <b>2</b>.</li>
+      <li><b>Match play</b> (Settings → Play): games continue until one side reaches <b>5 points</b>.</li>
+    </ul>
+    <h3>Opponents</h3>
+    <ul>
+      <li>1 Beginner – random · 2 Novice – careless pip-counter · 3 Intermediate – blocks and races · 4 Advanced – looks one roll ahead · 5 Expert – deepest search.</li>
+    </ul>
+    <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap"><button id="rulesStrategy">Strategy guide</button><button id="closeRules" class="primary">Got it</button></div>
+  </div>
+</div>
+
+<div id="makis" class="panel" hidden>
+  <div class="mk-head">
+    <div class="mk-avatar serif">M</div>
+    <div><div class="mk-name serif">Mr. Makis</div><div class="mk-sub">Level 10 coach</div></div>
+    <button id="makisClose" class="mk-x" title="Close (keeps the move)">×</button>
+  </div>
+  <div id="makisBody"></div>
+  <div class="mk-btns">
+    <button id="makisKeep" class="primary">Keep his move</button>
+    <button id="makisBack">Take it back</button>
+  </div>
+</div>
+
+<div id="replayBar" class="panel" hidden>
+  <div class="rtop"><span id="replayTitle" class="serif"></span><span id="replayTurn"></span></div>
+  <div id="replayMove"></div>
+  <input type="range" id="replaySlider" min="0" max="0" value="0" aria-label="Move">
+  <div class="rbtns">
+    <button id="rpStart" title="Start (Home)">⏮</button>
+    <button id="rpPrev" title="Previous move (←)">◀</button>
+    <button id="rpPlay" class="primary" title="Play / pause (Space)">▶ Play</button>
+    <button id="rpNext" title="Next move (→)">▶</button>
+    <button id="rpEnd" title="End (End)">⏭</button>
+    <button id="rpExit" title="Back to your game (Esc)">Exit replay</button>
+  </div>
+</div>
+
+<div id="games" class="modal hidden">
+  <div class="sheet panel">
+    <h2 class="serif">Games</h2>
+    <div id="gamesBody"></div>
+    <input type="file" id="vbgInput" accept=".vbg" hidden>
+    <div class="row"><button id="closeGames" class="primary">Close</button></div>
+  </div>
+</div>
+
+<div id="settings" class="modal hidden">
+  <div class="sheet panel">
+    <h2 class="serif">Settings</h2>
+    <h3>Favourites <span class="cnt">level, colour, lighting, view and every setting below, in one click</span></h3>
+    <div id="favList"></div>
+    <div class="vbgbar">
+      <button id="vbsExport" class="web-only" title="Download your setup and favourites as a .vbs file">Export settings (.vbs)</button>
+      <button id="vbsLoad">Load settings (.vbs)…</button>
+      <span>Take your setup and favourites to another browser or share them.</span>
+    </div>
+    <div id="vbsAsk" class="grow" hidden><span id="vbsAskText" class="warn"></span>
+      <div class="ga"><button id="vbsYes" class="primary">Apply</button><button id="vbsNo">Cancel</button></div></div>
+    <input type="file" id="vbsInput" accept=".vbs" hidden>
+    <h3>Board style</h3>
+    <div id="themeGrid"></div>
+    <h3>Play</h3>
+    <label class="opt"><input type="checkbox" id="optAutoEnd"> End my turn automatically after my last move (no Done / Enter)</label>
+    <label class="opt"><input type="checkbox" id="optMatch"> Play a match to 5 points (mars counts 2) — off: single games with a running score</label>
+    <label class="opt"><input type="checkbox" id="optOpening"> Opening throw: the winner plays the two opening dice as the first move (off: the winner rolls again)</label>
+    <h3>Display &amp; sound</h3>
+    <label class="opt"><input type="checkbox" id="optLamp"> Retro lamp light — a warm pool of light from a lamp hanging over the board; the room around it goes dark</label>
+    <label class="opt"><input type="checkbox" id="optNumbers"> Point numbers on the rails</label>
+    <label class="opt"><input type="checkbox" id="optRound"> Round counter at the top — round 10 is each side's tenth turn, the moment the strategy guide's "after ten turns" figures describe</label>
+    <label class="opt"><input type="checkbox" id="optSound"> Sound effects</label>
+    <label class="opt"><input type="checkbox" id="optFreeCam"> Free view — drag to turn the board, scroll to zoom (off: the board stays where it is; also the 🔒 button or V)</label>
+    <div class="row">
+      <button id="settingsView">Reset camera</button>
+      <button id="closeSettings" class="primary">Done</button>
+    </div>
+  </div>
+</div>
+
+<div id="veil"><div class="t">Φεύγα</div><div class="s">Setting up the board</div></div>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
