@@ -1465,7 +1465,7 @@ function blockedReason(a) {
   if (!passedStart && r === 24 && T.v.mine.slice(12, 24).some((x) => x > 0)) return 'Your first checker must pass the computer\'s starting point before another may leave';
   const quarterOpen = [19, 20, 21, 22, 23, 24].filter((q) => !T.v.mine[q]);
   if (r >= 20 && quarterOpen.length === 1 && T.rem.some((d) => r - d === quarterOpen[0]))
-    return 'You may not occupy all six points of your starting quarter (1–6)';
+    return 'You may not end your move holding all six points of your starting quarter (1–6)';
   if (T.mustOpen) return `${mustOpenText(T)} — that checker cannot help with these dice`;
   return 'That checker has no legal move with these dice';
 }

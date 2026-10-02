@@ -16,7 +16,8 @@
 // - Until one of your checkers has passed the opponent's starting point (your point
 //   12), you may only move that first checker.
 // - Six (or more) points in a row are allowed anywhere, except:
-// - You may never hold all six points of your own starting quarter (your 19..24).
+// - You may never end a move holding all six points of your own starting quarter (your 19..24);
+//   passing over the last open one mid-move (e.g. one checker playing both dice) is fine.
 // - Unblocking: if at the start of your turn every opponent checker on the board stands on
 //   the single point right behind six of your points in a row, your play must open one of
 //   those six points. Playing the most dice (and the larger die) comes first; if no such
@@ -78,10 +79,11 @@ function stepTarget(v, r, d) {
   return 0;
 }
 
-// After a checker lands on a previously empty point t: does it fill all six points of my
-// own starting quarter (19..24)? That is the only six-in-a-row that is ever illegal to build.
-function illegalPrime(v, t) {
-  if (t < 19) return false;
+// Do I hold all six points of my own starting quarter (19..24)? That is the only six-in-a-row
+// that is ever illegal. It is judged on the position a move ENDS in, not after each die: a checker
+// may pass over the last open point of the quarter on its way somewhere else (Manos 2026-10-02:
+// 1->3->5 with two 2s while holding 1, 2, 4, 5, 6).
+function quarterFull(v) {
   for (let r = 19; r <= 24; r++) if (!v.mine[r]) return false;
   return true;
 }
@@ -106,7 +108,7 @@ const wallOpen = (v, s) => { for (let k = 1; k <= 6; k++) if (!v.mine[S(s - k)])
 
 // Can the remaining dice play exactly `need` more steps and end with the wall in front of s open?
 function canEndOpen(v, rem, need, s) {
-  if (need === 0) return wallOpen(v, s);
+  if (need === 0) return !quarterFull(v) && wallOpen(v, s);
   for (let i = 0; i < rem.length; i++) {
     const d = rem[i];
     if (rem.indexOf(d) !== i) continue;
@@ -132,18 +134,18 @@ function tryStep(v, r, d) {
   if (!v.mine[r] || !canLeave(v, r)) return -1;
   const t = stepTarget(v, r, d);
   if (t < 0) return -1;
-  const fresh = t > 0 && v.mine[t] === 0;
   v.mine[r]--;
   if (t) v.mine[t]++; else v.myOff++;
-  if (fresh && illegalPrime(v, t)) { undoStep(v, r, t); return -1; }
   return t;
 }
 
 const without = (arr, i) => arr.slice(0, i).concat(arr.slice(i + 1));
 
+// Most dice that can still be played from v, counting only plays that END with the starting
+// quarter not full (-Infinity if even stopping here is illegal and no die can fix it).
 function maxPlay(v, rem) {
-  if (!rem.length) return 0;
-  let best = 0;
+  let best = quarterFull(v) ? -Infinity : 0;
+  if (!rem.length) return best;
   for (let i = 0; i < rem.length; i++) {
     const d = rem[i];
     if (rem.indexOf(d) !== i) continue;
@@ -257,7 +259,6 @@ export function finalPositions(v, rem, trap = trapPoint(v)) {
     const k = keyOf(v.mine, v.myOff) + '|' + rest.join('');
     if (seen.has(k)) return;
     seen.add(k);
-    let moved = false;
     for (let i = 0; i < rest.length; i++) {
       const d = rest[i];
       if (rest.indexOf(d) !== i) continue;
@@ -265,14 +266,14 @@ export function finalPositions(v, rem, trap = trapPoint(v)) {
       for (let r = 24; r >= 1; r--) {
         const t = tryStep(v, r, d);
         if (t < 0) continue;
-        moved = true;
         steps.push({ r, t, d });
         rec(after);
         steps.pop();
         undoStep(v, r, t);
       }
     }
-    if (!moved && steps.length) {
+    // Every legal stopping position is a candidate; the longest ones are kept below.
+    if (steps.length && !quarterFull(v)) {
       const fk = keyOf(v.mine, v.myOff);
       if (steps.length > maxLen) maxLen = steps.length;
       const prev = leaves.get(fk);

@@ -102,10 +102,52 @@ ok(absOf(0, 24) === 23 && absOf(1, 24) === 11 && absOf(1, 13) === 0 && absOf(1, 
   // white holds 24, 23, 22, 21, 20; every black checker is past them (its points 2..3);
   // the starting-quarter rule must still refuse 19
   const white = { 24: 9, 23: 1, 22: 1, 21: 1, 20: 1, 5: 2 };
-  const T = createTurn(game(white, { 3: 5, 2: 10 }), 0, [5, 1]);
+  const g4b = game(white, { 3: 5, 2: 10 });
+  const T = createTurn(g4b, 0, [5, 1]);
   const all = turnSteps(T);
-  ok(!all.some((s) => s.r === 24 && s.t === 19), `cannot close the starting quarter: ${fmt(all)}`);
   ok(all.some((s) => s.r === 20 && s.t === 19), 'shifting 20>19 keeps a gap and is legal');
+  // the rule is about where a move ENDS: 24>19 is fine only because the 1 can reopen a gap
+  turnPlay(T, { r: 24, d: 5 });
+  ok(fmt(turnSteps(T)) === '19>18/1 20>19/1 21>20/1 22>21/1 23>22/1', `after 24>19 only a gap-opening 1 is offered: ${fmt(turnSteps(T))}`);
+  const T1 = createTurn(g4b, 0, [5, 5]);
+  ok(!turnSteps(T1).some((s) => s.r === 24 && s.t === 19) || T1.M === 4, 'double 5 cannot be left closed');
+  // every clicked play of several rolls ends with the quarter open, and matches the enumeration
+  for (const dice of [[5, 1], [5, 5], [1, 1], [4, 2], [3, 1]]) {
+    const ends = new Set(); let bad = 0, plays = 0;
+    const walk = (steps) => {
+      const t = createTurn(g4b, 0, dice);
+      for (const s of steps) turnPlay(t, s);
+      if (turnDone(t)) { plays++; if ([19, 20, 21, 22, 23, 24].every((r) => t.v.mine[r])) bad++; ends.add(t.v.mine.join()); return; }
+      const nxt = turnSteps(t);
+      if (!nxt.length) bad++;
+      for (const s of nxt) walk([...steps, s]);
+    };
+    walk([]);
+    const finals = finalPositions(viewOf(g4b, 0), expandDice(dice));
+    ok(plays > 0 && !bad, `${dice}: no clicked play ends with the quarter closed or stuck (${plays} plays, ${bad} bad)`);
+    ok(finals.length === ends.size && finals.every((f) => ends.has(f.mine.join()) && !f.mine.slice(19, 25).every((x) => x)), `${dice}: interactive = enumerated, none closed`);
+  }
+}
+
+// 4d. One checker may pass over the last open point of the starting quarter (Manos 2026-10-02):
+// holding shown 1, 2, 4, 5, 6 (= 24, 23, 21, 20, 19), 1>3>5 with two 2s ends with 3 still open.
+{
+  const g = game({ 24: 3, 23: 1, 21: 1, 20: 1, 19: 1, 5: 8 }, { 24: 15 });
+  const T = createTurn(g, 0, [2, 2]);
+  ok(T.M === 4, `double 2 is fully playable (M=${T.M})`);
+  ok(turnSteps(T).some((s) => s.r === 24 && s.t === 22), 'the checker on 1 may step to 3 ...');
+  turnPlay(T, { r: 24, d: 2 });
+  ok(turnSteps(T).some((s) => s.r === 22 && s.t === 20), '... and carry on to 5');
+  turnPlay(T, { r: 22, d: 2 });
+  ok(T.v.mine[22] === 0 && T.v.mine[24] === 2 && T.v.mine[20] === 2, 'ends with 3 open, two left on 1, two on 5');
+  // two different dice: 2 then 2 by one checker is also offered as a single landing spot
+  const T2 = createTurn(g, 0, [2, 1]);
+  const end = new Set();
+  for (const s of turnSteps(T2)) {
+    const t = createTurn(g, 0, [2, 1]); turnPlay(t, s);
+    for (const s2 of turnSteps(t)) { const t2 = createTurn(g, 0, [2, 1]); turnPlay(t2, s); turnPlay(t2, s2); end.add(t2.v.mine.slice(19, 25).every((x) => x)); }
+  }
+  ok(end.size === 1 && end.has(false), 'a 2-1 can never end with the quarter closed');
 }
 
 // 5. Bearing off: exact, higher die from the highest point, and not before all are home.
