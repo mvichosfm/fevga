@@ -62,6 +62,13 @@ export class Sound {
     if (!this._ok()) return;
     [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => { this._tone(f, i * 0.13, 0.9, 0.18); this._tone(f * 2, i * 0.13, 0.6, 0.05); });
   }
+  // party-popper: a low thump with a burst of air, then a shower of tiny paper ticks
+  pop() {
+    if (!this._ok()) return;
+    this.tok(0.5, 180);
+    this._noise(0.16, 0.4, 4500);
+    for (let i = 0; i < 9; i++) setTimeout(() => this._noise(0.012, 0.07 + Math.random() * 0.05, 6500), 120 + i * 85 + Math.random() * 60);
+  }
   lose() {
     if (!this._ok()) return;
     [392, 329.63, 261.63].forEach((f, i) => this._tone(f, i * 0.18, 0.7, 0.16, 'triangle'));

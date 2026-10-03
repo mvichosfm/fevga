@@ -128,6 +128,36 @@
   .modal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:16px;
     background:radial-gradient(ellipse at center, rgba(10,7,5,.25), rgba(10,7,5,.7)); transition:opacity .35s; z-index:5; }
   .modal.hidden { opacity:0; pointer-events:none; }
+  /* the welcome screen: over the live board, which stays visible (softly blurred) behind it */
+  #hero { z-index:7; background:radial-gradient(ellipse at center, rgba(10,7,5,.28), rgba(10,7,5,.7)); backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px); }
+  /* behind the welcome card only the board shows: the game's own panels wait until it is dismissed */
+  #brand, #board, #bar, #viewTools, #muteBtn, #help, #round { transition:opacity .3s; }
+  body:has(#hero:not(.hidden)) :is(#brand, #board, #bar, #viewTools, #muteBtn, #help, #round) { opacity:0; pointer-events:none; }
+  .hero-card { max-width:min(560px, 100%); max-height:calc(100vh - 32px); overflow:auto; padding:32px 36px 24px; }
+  .hero-mark { font-size:68px; line-height:1; color:var(--gold); letter-spacing:.02em; text-shadow:0 2px 24px rgba(232,183,90,.35); }
+  .hero-sub { margin:6px 0 16px; font-size:12px; letter-spacing:.28em; text-transform:uppercase; color:var(--dim); }
+  .hero-card .hero-lede { font-size:16px; color:#e6dccb; margin:0 auto 16px; max-width:44ch; }
+  .hero-feats { list-style:none; display:flex; flex-wrap:wrap; justify-content:center; gap:6px; margin:0 0 22px; padding:0; }
+  .hero-feats li { font-size:12px; padding:4px 11px; border:1px solid var(--edge); border-radius:999px; background:rgba(255,235,200,.06); color:var(--ink); }
+  .hero-cta { display:flex; gap:10px; justify-content:center; flex-wrap:wrap; }
+  .hero-cta button { padding:11px 22px; font-size:15px; }
+  .hero-cta .primary { min-width:130px; font-size:16px; }
+  .hero-links { margin-top:16px; display:flex; gap:6px 16px; justify-content:center; flex-wrap:wrap; align-items:center; font-size:12px; }
+  .hero-links .web-only { display:contents; }
+  .hero-links a { color:var(--dim); text-decoration:underline; }
+  .hero-links a:hover { color:var(--ink); }
+  .hero-links .link { font-size:12px; }
+  /* short windows (a phone on its side): the card is trimmed to fit */
+  @media (max-height:500px) {
+    .hero-card { padding:14px 22px 12px; }
+    .hero-mark { font-size:40px; }
+    .hero-sub { margin:2px 0 8px; }
+    .hero-card .hero-lede { font-size:13.5px; margin-bottom:8px; }
+    .hero-feats { display:none; }
+    .hero-cta button { padding:8px 16px; font-size:14px; }
+    .hero-links { margin-top:8px; }
+  }
+  #overlay.celebrate { background:radial-gradient(ellipse at center, rgba(10,7,5,.05), rgba(10,7,5,.38)); } /* a win: the confetti still shows around the card */
   .sheet { padding:26px 30px; max-width:min(460px, 100%); text-align:center; }
   .sheet h2 { margin:0 0 10px; font-size:30px; font-weight:600; }
   .sheet p { margin:0 0 16px; color:var(--dim); line-height:1.55; }
@@ -209,6 +239,15 @@
   #pzBody { font-size:13.5px; line-height:1.5; }
   #pzBody p { margin:6px 0; }
   #pzBody b { color:var(--gold); }
+  /* guided lessons: one numbered dot per lesson (ticked when done), the current one ringed */
+  .ls-nav { display:flex; gap:5px; flex-wrap:wrap; margin:0 0 8px; }
+  .ls-dot { padding:0; width:26px; height:26px; border-radius:50%; font-size:12px; line-height:1; }
+  .ls-dot.on { border-color:var(--gold); background:rgba(232,183,90,.2); box-shadow:0 0 0 1px var(--gold) inset; }
+  .ls-dot.done { border-color:rgba(120,200,160,.55); background:rgba(60,140,100,.16); }
+  .ls-task { border-left:3px solid #6dffa6; padding-left:10px; }
+  #pzBtns [data-act="undo"] { display:none; } /* shown only by a lesson in landscape, where the move strip is hidden */
+  .ls-teach summary { cursor:pointer; color:var(--gold); font-size:11px; letter-spacing:.12em; text-transform:uppercase; margin:2px 0 2px; }
+  .ls-teach[open] summary { opacity:.7; }
   #pzBody ul { margin:4px 0 6px; padding-left:18px; }
   /* the actions stay reachable when a long result scrolls the panel */
   #pzBtns { position:sticky; bottom:-14px; margin:8px -16px -14px; padding:8px 16px 12px; background:rgba(26,18,12,.97); border-top:1px solid var(--edge); }
@@ -305,47 +344,70 @@
     #muteBtn { bottom:auto; top:max(16px, env(safe-area-inset-top)); right:16px; }
     #viewTools { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 8px); flex-direction:row-reverse; }
   }
-  /* phones in landscape (or any window under 500 px tall): the panels become two slim rails -
-     brand, score and lamp row on the left, the move bar on the right - and the board is framed
-     in the space between them (viewBand). */
+  /* phones in landscape (or any window under 500 px tall): the board comes first. Closed, only two
+     slim strips sit beside it - ☰ with a mini scoreboard on the left, the move controls on the right
+     (main.js frames the board between them, viewBand). ☰ opens a drawer over the left side with
+     everything else: level, colour, the menu buttons, the full scoreboard and lamp / lock / sound /
+     dimmer. A tap outside, Esc or any menu choice closes it (body.drawer, set by setMenu). */
+  #drawerBack, #moreBtn { display:none; }
   @media (max-height:500px) {
-    /* left rail, 128 px: title + ☰ (the level select moves into the ☰ menu here, see positionHud),
-       the score, and lamp / lock over a full-width dimmer */
-    #brand { left:max(8px, env(safe-area-inset-left)); top:max(8px, env(safe-area-inset-top)); right:auto; width:128px; padding:6px 8px; min-height:46px; }
-    #brand h1 { font-size:19px; line-height:34px; }
-    #menuBtn { position:absolute; top:5px; right:5px; padding:4px 12px; font-size:19px; }
-    #brandMenu { right:auto; width:min(360px, calc(100vw - 24px)); }
-    #brandMenu #levelRow { margin-top:8px; }
-    #board { left:max(8px, env(safe-area-inset-left)); right:auto; width:128px; padding:4px; flex-direction:column; flex-wrap:nowrap; }
-    /* name and score on one line, pips / off under both (the narrow rail cannot fit them beside the score) */
-    #board .side { flex:none; grid-template-columns:14px 1fr auto; gap:0 6px; padding:3px 5px; }
-    #board .dot { width:14px; height:14px; }
-    .side .nm { font-size:12.5px; }
-    .side .sc { grid-row:auto; font-size:18px; }
-    .side .meta { font-size:10.5px; grid-column:2 / -1; white-space:nowrap; }
-    #board .foot { padding:2px 4px 0; }
+    #help { display:none; }
+    /* closed: ☰ alone (the level select moves into the drawer's menu here, see positionHud) */
+    #brand { left:max(8px, env(safe-area-inset-left)); top:max(8px, env(safe-area-inset-top)); right:auto; width:auto; padding:0; display:block; }
+    #brand h1, #brandMenu { display:none; }
+    #menuBtn { position:static; display:block; width:44px; height:44px; padding:0; font-size:20px; background:none; border-color:transparent; }
+    /* the mini scoreboard under it: dot, score, pips for each side (the off count is on the table) */
+    #board { left:max(8px, env(safe-area-inset-left)); right:auto; top:calc(max(8px, env(safe-area-inset-top)) + 52px); width:44px;
+      padding:4px 0; flex-direction:column; flex-wrap:nowrap; gap:2px; cursor:pointer; }
+    #board .side { display:flex; flex-direction:column; align-items:center; flex:none; gap:1px; padding:4px 0; }
+    #board .side .nm, #board .side .of, #board .side .pl, #board .foot { display:none; }
+    #board .dot { width:13px; height:13px; }
+    .side .sc { grid-row:auto; font-size:18px; text-align:center; }
+    .side .meta { font-size:10.5px; white-space:nowrap; }
+    #viewTools { display:none; }
+    /* open: the drawer - menu in a 260 px column, full scoreboard and lamp row in a second one */
+    body.drawer #drawerBack { display:block; position:fixed; inset:0; z-index:3; }
+    #brand.open { width:260px; padding:6px 8px 8px; max-height:calc(100vh - 16px); overflow:auto; }
+    #brand.open h1 { display:block; font-size:19px; line-height:34px; }
+    #brand.open #menuBtn { position:absolute; top:4px; right:4px; width:36px; height:36px; border-color:var(--gold); }
+    #brand.open #brandMenu { display:block; position:static; padding:0; background:none; border:0; box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none; }
+    #brandMenu #levelRow { margin-top:4px; }
+    body.drawer #board { left:calc(max(8px, env(safe-area-inset-left)) + 268px); top:max(8px, env(safe-area-inset-top)); width:190px; padding:6px 8px; z-index:4; cursor:default; }
+    body.drawer #board .side { display:grid; grid-template-columns:14px 1fr auto; gap:0 6px; padding:3px 5px; }
+    body.drawer #board .side .nm { display:block; font-size:12.5px; }
+    body.drawer #board .side .of, body.drawer #board .side .pl { display:inline; }
+    body.drawer #board .side .meta { grid-column:2 / -1; }
+    body.drawer #board .foot { display:flex; padding:2px 4px 0; }
     #resetScore { padding:4px 0; }
-    #viewTools { left:max(8px, env(safe-area-inset-left)); right:auto; bottom:max(8px, env(safe-area-inset-bottom)); width:128px;
+    body.drawer #viewTools { display:flex; left:calc(max(8px, env(safe-area-inset-left)) + 268px); right:auto; bottom:max(8px, env(safe-area-inset-bottom)); width:190px; z-index:4;
       flex-direction:row; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:6px 4px; }
     #dimmerBox { order:3; flex:1 1 100%; min-width:0; padding:7px 8px; gap:6px; }
     #dimmer { flex:1 1 0; width:0; min-width:0; height:24px; }
     /* (the sound button sits in the lamp / lock row here - moved by positionHud) */
     #viewTools #muteBtn { position:static; padding:7px 10px; }
     #bulbBtn { padding:2px 6px 1px; }
-    /* right rail, 150 px: the status (dice, then the message, never cut) over equal 38 px buttons;
-       two-word labels wrap inside the same height */
-    #bar { left:auto; transform:none; right:max(8px, env(safe-area-inset-right)); top:max(8px, env(safe-area-inset-top));
-      bottom:max(8px, env(safe-area-inset-bottom)); width:150px; padding:8px 7px; justify-content:center; overflow-y:auto; overflow-x:hidden; }
+    /* right strip, 132 px, anchored bottom-right: the status (dice, then the message, never cut), the
+       main action (Roll / Done), Undo and ⋯, which holds Hint / Mr. Makis / Admit loss / Slam */
+    #bar { left:auto; transform:none; right:max(8px, env(safe-area-inset-right)); top:auto;
+      bottom:max(8px, env(safe-area-inset-bottom)); width:132px; padding:8px 7px; gap:6px; max-height:calc(100vh - 16px); overflow-y:auto; overflow-x:hidden; }
     #statusRow { flex-direction:column; flex-wrap:nowrap; flex-shrink:0; gap:2px; width:100%; }
     #status { font-size:12.5px; line-height:1.35; overflow-wrap:anywhere; }
+    .chip { font-size:24px; }
     #buttons { display:grid; grid-template-columns:1fr 1fr; grid-auto-flow:dense; gap:6px; width:100%; flex-shrink:0; }
     #buttons button { padding:3px 4px; min-width:0; min-height:38px; font-size:13px; line-height:1.12; }
-    #buttons button.primary { grid-column:1 / -1; }
+    #buttons button.primary { grid-column:1 / -1; order:-1; }
+    #moreBtn { display:block; font-size:19px; }
+    #bar:not(.more) #hintBtn, #bar:not(.more) #makisBtn, #bar:not(.more) #resignBtn, #bar:not(.more) #slamBtn { display:none; }
+    #bar.more #moreBtn { border-color:var(--gold); background:rgba(232,183,90,.16); }
     #resignAsk { display:flex; flex-direction:column; gap:6px; font-size:12.5px; }
+    #bar.asking #statusRow, #bar.asking #buttons { display:none; }
+    #resignAsk button { padding:5px 6px; min-height:34px; font-size:12.5px; line-height:1.15; }
+    /* the round counter has the top-right corner to itself */
+    #round { left:auto; right:max(8px, env(safe-area-inset-right)); transform:none; padding:5px 12px 6px; }
     #toast { bottom:max(8px, env(safe-area-inset-bottom)); }
-    /* the replay bar takes the move bar's exact place, so the board does not move between them */
-    #replayBar { left:auto; transform:none; right:max(8px, env(safe-area-inset-right)); top:max(8px, env(safe-area-inset-top));
-      bottom:max(8px, env(safe-area-inset-bottom)); width:150px; padding:8px 7px; overflow-y:auto; overflow-x:hidden; justify-content:center; }
+    /* the replay bar takes the move bar's place, so the board does not move between them */
+    #replayBar { left:auto; transform:none; right:max(8px, env(safe-area-inset-right)); top:auto;
+      bottom:max(8px, env(safe-area-inset-bottom)); width:132px; max-height:calc(100vh - 16px); padding:8px 7px; overflow-y:auto; overflow-x:hidden; }
     #replayBar .rtop { flex-direction:column; align-items:center; text-align:center; gap:2px; }
     #replayBar > * { flex-shrink:0; } /* a fixed-height column must not squeeze its rows into each other */
     #replayBar .rtop { width:100%; }
@@ -355,8 +417,14 @@
     #replayBar .rbtns button { padding:3px 2px; min-width:0; min-height:34px; font-size:13px; line-height:1.1; }
     #replayBar .rbtns #rpPlay, #replayBar .rbtns #rpExit { grid-column:1 / -1; }
     #replayBar .rbtns .review-btn { grid-column:span 2; font-size:12px; }
-    #makis, #review, #puzzle { left:max(8px, env(safe-area-inset-left)) !important; top:max(8px, env(safe-area-inset-top)) !important;
+    #makis, #review, #puzzle { left:calc(max(8px, env(safe-area-inset-left)) + 52px) !important; top:max(8px, env(safe-area-inset-top)) !important;
       bottom:auto !important; transform:none !important; width:min(300px, 40vw) !important; max-height:calc(100vh - 16px) !important; z-index:6; }
+    /* a lesson takes the move strip's place: its panel on the right (full height), the strip hidden,
+       Undo inside the panel; the board is framed between the ☰ strip and the panel (viewBand) */
+    body.lesson #bar { display:none; }
+    body.lesson #puzzle { left:auto !important; right:max(8px, env(safe-area-inset-right)) !important; width:min(280px, 36vw) !important; }
+    body.lesson #pzBtns [data-act="undo"] { display:inline-block; }
+    .ls-dot { width:23px; height:23px; font-size:11px; }
   }
 </style>
 </head>
@@ -364,6 +432,7 @@
 <canvas id="scene"></canvas>
 <div id="vignette"></div>
 
+<div id="drawerBack"></div>
 <div id="brand" class="panel">
   <h1 class="serif">Φεύγα<small>FEVGA · Greek tavli</small></h1>
   <div class="row" id="levelRow">
@@ -379,6 +448,7 @@
   </div>
   <div class="row">
     <button id="newBtn">New game</button>
+    <button id="learnBtn" title="Eight short guided lessons on the real board, one rule each">Learn</button>
     <button id="rulesBtn">Rules</button>
     <button id="strategyBtn" title="Strategy guide (opens in a new tab)">Strategy</button>
     <button id="settingsBtn" title="Board style, numbers, sound">⚙ Settings</button>
@@ -394,11 +464,11 @@
 <div id="board" class="panel">
   <div class="side" id="turnYou">
     <span class="dot w" id="dotYou"></span><span class="nm">You</span><span class="sc" id="scoreYou">0</span>
-    <span class="meta">Pips <b id="pipYou">360</b> · Off <b id="offYou">0</b></span>
+    <span class="meta" title="Pips (distance left to travel)"><span class="pl">Pips </span><b id="pipYou">360</b><span class="of"> · Off <b id="offYou">0</b></span></span>
   </div>
   <div class="side" id="turnCpu">
     <span class="dot b" id="dotCpu"></span><span class="nm">Computer</span><span class="sc" id="scoreCpu">0</span>
-    <span class="meta">Pips <b id="pipCpu">360</b> · Off <b id="offCpu">0</b></span>
+    <span class="meta" title="Pips (distance left to travel)"><span class="pl">Pips </span><b id="pipCpu">360</b><span class="of"> · Off <b id="offCpu">0</b></span></span>
   </div>
   <div class="foot"><span id="levelFoot">Level: <b id="levelName"></b></span><b id="matchInfo" hidden></b><button class="link" id="resetScore">reset score</button></div>
 </div>
@@ -418,6 +488,7 @@
     <button id="doneBtn" class="primary" hidden>Done<kbd>Enter</kbd></button>
     <button id="resignBtn" class="resign" hidden title="Concede this game as a single (1 point) or double (2 points) loss">Admit loss</button>
     <button id="slamBtn" class="slam" hidden title="Angry? Slam the board shut. Just for fun: the game carries on exactly where it was">Slam!<kbd>S</kbd></button>
+    <button id="moreBtn" hidden aria-expanded="false" title="More: Hint, Mr. Makis, Admit loss, Slam" aria-label="More actions">⋯</button>
   </div>
   <div id="resignAsk" hidden>
     <span>Admit the loss? Choose what the computer scores:</span>
@@ -463,6 +534,28 @@
   </label>
 </div>
 
+<!-- first visit: a short welcome over the live board (fevga.seen.v1 remembers it; Rules > About reopens it) -->
+<div id="hero" class="modal" role="dialog" aria-modal="true" aria-labelledby="heroTitle">
+  <div class="sheet panel hero-card">
+    <div class="hero-mark serif" id="heroTitle">Φεύγα</div>
+    <div class="hero-sub">Fevga · Greek tavli</div>
+    <p class="hero-lede">Race fifteen checkers round the board and home before the computer does. Nobody can be hit, so the game is won by building walls it cannot pass.</p>
+    <ul class="hero-feats">
+      <li>5 computer levels</li><li>Mr. Makis, your coach</li><li>8 guided lessons</li><li>Puzzles</li><li>10 board styles</li>
+    </ul>
+    <div class="hero-cta">
+      <button id="heroPlay" class="primary">Play</button>
+      <button id="heroLearn" title="Eight short lessons on the real board, one rule each">Learn the rules first</button>
+    </div>
+    <div class="hero-links">
+      <button class="link" id="heroRules">Rules</button>
+      <button class="link" id="heroStrategy">Strategy guide</button>
+      <span class="web-only"><a href="https://github.com/mvichosfm/fevga" target="_blank" rel="noopener">Source on GitHub</a>
+      <a href="https://github.com/mvichosfm/fevga/releases/latest" target="_blank" rel="noopener">Android app</a></span>
+    </div>
+  </div>
+</div>
+
 <div id="overlay" class="modal hidden">
   <div class="sheet panel">
     <h2 class="serif" id="ovTitle"></h2>
@@ -500,7 +593,7 @@
     <ul>
       <li>1 Beginner – random · 2 Novice – careless pip-counter · 3 Intermediate – blocks and races · 4 Advanced – looks one roll ahead · 5 Expert – deepest search.</li>
     </ul>
-    <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap"><button id="rulesStrategy">Strategy guide</button><button id="closeRules" class="primary">Got it</button></div>
+    <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap"><button id="rulesAbout" title="The welcome screen">About</button><button id="rulesLearn" title="Eight short guided lessons on the real board, one rule each">Guided lessons</button><button id="rulesStrategy">Strategy guide</button><button id="closeRules" class="primary">Got it</button></div>
   </div>
 </div>
 
@@ -591,6 +684,7 @@
     <h3>Display &amp; sound</h3>
     <label class="opt"><input type="checkbox" id="optLamp"> Retro lamp light — a warm pool of light from a lamp hanging over the board; the room around it goes dark</label>
     <label class="opt"><input type="checkbox" id="optNumbers"> Point numbers on the rails</label>
+    <label class="opt"><input type="checkbox" id="optTrails"> Show the computer's last move — glowing arcs and rings from where its checkers left to where they landed, for a few seconds</label>
     <label class="opt"><input type="checkbox" id="optRound"> Round counter at the top — round 10 is each side's tenth turn, the moment the strategy guide's "after ten turns" figures describe</label>
     <label class="opt"><input type="checkbox" id="optTotal"> Show the sum of the two dice in the move message — a 6–5 reads "(sum 11)"</label>
     <label class="opt"><input type="checkbox" id="optSound"> Sound effects</label>

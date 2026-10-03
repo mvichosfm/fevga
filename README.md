@@ -27,6 +27,16 @@ No accounts, no ads, no tracking, no network calls: the game is a static page an
   by playing every candidate to the end hundreds of times (the right move wins at least 10 points of win
   chance more than the best wrong one). Graded Easy to Master by which computer level already finds the
   move.
+- **Guided lessons** (the *Learn* button, and a welcome screen on the first visit): eight short scripted
+  positions on the real board, one rule each: the way round, the runner, no hitting, the larger die,
+  doubles, the starting quarter, bearing off, mars. Each lesson checks itself, and `test/lessons.mjs`
+  proves every position, answer and rule claim against the engine.
+- **Move feedback:** dice that tumble and settle, glowing arcs and rings showing where the computer's last
+  checkers came from and went (optional), and confetti when you win (a calmer version if your system asks
+  for reduced motion).
+- **Phone layout:** in landscape the board comes first: a menu button and a mini scoreboard on the left,
+  the move controls on the right, and everything else in a drawer; Hint, Mr. Makis, Admit loss and Slam
+  sit behind a **⋯** button. Drag a checker to move it.
 - **Hint**, **Undo**, an optional **opening throw**, **match to 5**, and **auto-end turn**.
 - **Game records:** the last five games are kept automatically, up to ten named saves, move-by-move
   **replay**, **Continue from here** to play on from any position of a recorded game, and `.vbg` files to
@@ -74,6 +84,7 @@ Any static server works too, e.g. `python -m http.server 8831`.
 ```bash
 node test/rules.mjs                         # rules engine, random full games, file formats (instant)
 node test/legality.mjs                      # every legal play vs an independent brute-force rules implementation (~1 min)
+node test/lessons.mjs                       # the guided lessons vs the engine (instant)
 node test/strategy-check.mjs                # the strategy guide's claims vs the engine (instant)
 node test/selfplay.mjs 200 1-2 2-3 3-4 4-5  # each level against the one below
 node test/makis.mjs 40 120                  # Mr. Makis against the Expert (slow: ~1 min a game)
@@ -91,6 +102,8 @@ node test/strategy-stats.mjs 3000 4         # the figures quoted in the strategy
 | `src/main.js` | Renderer, board and checker geometry, animation, input, turn flow, HUD, settings. |
 | `src/records.js` | Game records, move notation, `.vbg` / `.vbs` file formats with validated import. |
 | `src/textures.js`, `src/themes.js` | Procedural wood and marble textures; the ten board styles. |
+| `src/lessons.js` | The eight guided lessons as pure data: positions, rule text, goals and answers. |
+| `src/effects.js` | Visual effects: the computer's last-move trails and the win confetti. |
 | `src/sound.js` | Synthesised sounds (no audio files). |
 | `strategy.html` | The strategy guide (standalone page, English and Greek). |
 | `vendor/` | three.js r170 and three of its example modules (see `THIRD-PARTY-NOTICES.md`). |

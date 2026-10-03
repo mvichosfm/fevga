@@ -11,6 +11,8 @@ import { aoTexture, ringTexture, triGlowTexture, dieTextures, boardShadowTexture
 import { THEMES, themeById, SURFACES, SURFACE_SIZE, makeSurface } from './themes.js';
 import { loadGames, storeGames, upsertRecent, saveNamed, renameSaved, deleteSaved, newId, stepsText, shown, resultText, fmtDate, MAX_SAVED, toVbg, parseVbg, vbgFileName, VBG_MAX_BYTES, toVbs, parseVbs, vbsFileName, VBS_MAX_BYTES } from './records.js';
 import { Sound } from './sound.js';
+import { createTrails, createConfetti } from './effects.js';
+import { LESSONS, lessonBoard, lessonSteps } from './lessons.js';
 
 const $ = (id) => document.getElementById(id);
 // Running inside the Android app (Capacitor injects window.Capacitor into its WebView). The app has
@@ -242,6 +244,7 @@ function buildMaterials() {
     selHalo: new THREE.MeshBasicMaterial({ map: ringTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xffe08a, toneMapped: false }),
     hint: new THREE.MeshBasicMaterial({ map: ringTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0x6dffa6, toneMapped: false }),
     tri: new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xffd27a, opacity: 0.5, toneMapped: false }),
+    triGoal: new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0x6dffa6, opacity: 0.55, toneMapped: false }), // a lesson's goal points
     hit: new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false }),
   };
 }
@@ -321,6 +324,10 @@ const world = new THREE.Group();
 stage.add(world);
 const checkerGroup = new THREE.Group();
 stage.add(checkerGroup);
+// effects: the computer's last-move trails ride the stage (they turn with the board); the win
+// confetti lives in world space so it always flies in from the same sides of the screen
+const trails = createTrails(stage, ringTex);
+const confetti = createConfetti(scene, { tableY: TABLE_Y, fx: FX, fz: FZ });
 
 const table = new THREE.Mesh(new THREE.PlaneGeometry(400, 400).rotateX(-Math.PI / 2), null);
 table.position.y = TABLE_Y;
@@ -417,6 +424,8 @@ function buildBoard() {
 // the stage is turned for black). humanPoint is the engine's own numbering (start = 24).
 const humanPoint = (a) => (HUMAN === 0 ? a + 1 : ((a + 12) % 24) + 1);
 let railPlanes = [];
+// the rail numbers follow Settings, except in a lesson: its text talks in point numbers
+function applyNumbers() { const on = showNumbers || !!(puzzle && puzzle.lesson); for (const p of railPlanes) p.visible = on; }
 function buildRailNumbers() {
   for (const p of railPlanes) { world.remove(p); p.material.map.dispose(); p.material.dispose(); }
   railPlanes = [];
@@ -435,7 +444,7 @@ function buildRailNumbers() {
     const plane = new THREE.Mesh(new THREE.PlaneGeometry(2 * FX, 2 * FX * ch / cw).rotateX(-Math.PI / 2), m);
     plane.position.set(0, RAIL_H + 0.006, near ? FZ + RAIL / 2 : -FZ - RAIL / 2);
     if (flip) plane.rotation.y = Math.PI;
-    plane.visible = showNumbers;
+    plane.visible = showNumbers || !!(puzzle && puzzle.lesson);
     plane.renderOrder = 3; world.add(plane); railPlanes.push(plane);
   }
 }
@@ -526,7 +535,7 @@ const topY = (a) => (stacks[a].length ? stacks[a][stacks[a].length - 1].userData
 async function moveChecker(p, from, to) {
   const src = from === -1 ? offStacks[p] : stacks[from];
   const mesh = src.pop();
-  if (!mesh) return;
+  if (!mesh) return null;
   const dst = to === -1 ? offStacks[p] : stacks[to];
   const target = to === -1 ? offPos(p, dst.length) : slotPos(to, dst.length);
   dst.push(mesh);
@@ -547,6 +556,7 @@ async function moveChecker(p, from, to) {
   mesh.position.copy(target);
   mesh.userData.anim--;
   sound.place();
+  return { start, target }; // (the computer's last-move trails are drawn from these)
 }
 
 // ================================================================ dice
@@ -591,20 +601,58 @@ function throwDie(i, value, side, slot, delay = 0) {
   );
   const start = new THREE.Vector3(sx * (BAR / 2 + HALF * 0.7) + (Math.random() - 0.5) * 3, 7, side === HUMAN ? FZ + 10 : -FZ - 10);
   const qEnd = faceUpQuat(value);
-  const axis = new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize();
-  const spin = (3 + Math.random() * 2) * Math.PI * 2;
-  const dur = 1.05 + Math.random() * 0.2;
-  const bounces = 3.15;
-  let lastB = 0;
-  const qa = new THREE.Quaternion();
+  const rest = DS / 2;
+  // A tumble in five legs, each one a ballistic arc: the drop from the throwing hand, three
+  // bounces that lose about 60 % of their height each time, then a short skid. Time per leg is
+  // what gravity allows for that height, travel along the path slows at every impact (friction),
+  // and each leg unwinds its own spin about its own axis, so the angular velocity changes at every
+  // knock and the die still ends exactly on `value`. The face is chosen by the dice roll, not by
+  // this animation: it only makes the throw look like one.
+  const G = 130, dropH = 7 - rest;
+  const peaks = [0, 2.2 + Math.random() * 0.6, 0.9 + Math.random() * 0.3, 0.3 + Math.random() * 0.1];
+  const legT = [Math.sqrt(2 * dropH / G), ...peaks.slice(1).map((h) => 2 * Math.sqrt(2 * h / G)), 0.22];
+  const legV = [1, 0.62, 0.38, 0.2, 0.06]; // horizontal speed on each leg, relative
+  const legTurns = [1.1 + Math.random() * 0.6, 1.4 + Math.random() * 0.8, 0.8 + Math.random() * 0.5, 0.35 + Math.random() * 0.25, 0.08];
+  const legAxis = legT.map(() => new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize());
+  const legAngle = legTurns.map((t) => t * Math.PI * 2 * (Math.random() < 0.5 ? -1 : 1));
+  const dur = legT.reduce((a, b) => a + b, 0);
+  const t0 = [0]; for (let j = 0; j < legT.length; j++) t0.push(t0[j] + legT[j]);       // leg start times
+  const dist = legT.map((t, j) => t * legV[j]);
+  const dTot = dist.reduce((a, b) => a + b, 0);
+  const s0 = [0]; for (let j = 0; j < dist.length; j++) s0.push(s0[j] + dist[j] / dTot);  // path fraction at leg starts
+  const side2 = new THREE.Vector3().subVectors(end, start).setY(0);
+  const perp = new THREE.Vector3(-side2.z, 0, side2.x).normalize().multiplyScalar((Math.random() - 0.5) * 2.4); // a little drift off the straight line
+  const wobAxis = new THREE.Vector3(Math.random() - 0.5, 0, Math.random() - 0.5).normalize();
+  const hits = [[t0[1], 0.7], [t0[2], 0.45], [t0[3], 0.3], [t0[4], 0.15]]; // impact times and loudness
+  let nextHit = 0;
+  const qa = new THREE.Quaternion(), qb = new THREE.Quaternion();
   return animateFn(dur, (k) => {
-    const e = 1 - Math.pow(1 - k, 3);
-    d.position.lerpVectors(start, end, e);
-    const b = Math.floor(k * bounces);
-    if (b > lastB && b <= 3) { lastB = b; sound.dieHit(0.7 / b); }
-    d.position.y = DS / 2 + 5.2 * Math.pow(1 - k, 2) * Math.abs(Math.sin(k * Math.PI * bounces)) + (1 - e) * 3;
-    qa.setFromAxisAngle(axis, spin * (1 - e));
-    d.quaternion.copy(qEnd).multiply(qa);
+    const t = k * dur;
+    let j = legT.length - 1; while (j > 0 && t < t0[j]) j--;
+    const u = Math.min(1, Math.max(0, (t - t0[j]) / legT[j]));
+    // position along the path: linear within a leg, the leg speeds set the slope
+    const s = s0[j] + (s0[j + 1] - s0[j]) * u;
+    d.position.lerpVectors(start, end, s);
+    d.position.addScaledVector(perp, Math.sin(s * Math.PI) * (1 - s));
+    // height: free fall, then parabolas, then flat
+    let y = rest;
+    if (j === 0) y = rest + dropH * (1 - u * u);
+    else if (j <= 3) y = rest + 4 * peaks[j] * u * (1 - u);
+    d.position.y = y;
+    // spin: every leg unwinds its own rotation; the legs before haven't started, the legs after are done
+    qa.copy(qEnd);
+    for (let i = 0; i < legT.length; i++) {
+      const a = i < j ? 0 : i === j ? legAngle[i] * (1 - u) : legAngle[i];
+      if (a !== 0) qa.multiply(qb.setFromAxisAngle(legAxis[i], a));
+    }
+    // the settle: a die coming to rest rocks a few degrees on its edge and stops
+    if (j === legT.length - 1) {
+      const tau = t - t0[j];
+      qa.multiply(qb.setFromAxisAngle(wobAxis, 0.09 * Math.exp(-10 * tau) * (1 - u) * Math.sin(38 * tau))); // (1 - u): dead flat at the end
+    }
+    d.quaternion.copy(qa);
+    // impacts (not when a flush jumps straight to the end)
+    while (nextHit < hits.length && t >= hits[nextHit][0]) { if (k < 1) sound.dieHit(hits[nextHit][1]); nextHit++; }
   }, delay);
 }
 
@@ -621,8 +669,9 @@ const easeOutBounce = (t) => {
 function animateFn(dur, fn, delay = 0) {
   return new Promise((res) => anims.push({ t: -delay, dur, fn, res }));
 }
-function flushAnims() { // finish everything instantly (new game)
+function flushAnims() { // finish everything instantly (new game, replay, puzzle: every board hand-over)
   for (const a of anims.splice(0)) { try { a.fn(1); } catch { /* ignore */ } a.res(); }
+  trails.clear(); confetti.clear(); // the last-move markers and the celebration belong to the game that just ended
 }
 let timeScale = 1; // tests shrink the pauses between moves
 const wait = (s) => new Promise((r) => setTimeout(r, s * 1000 * timeScale));
@@ -672,7 +721,7 @@ function askReview(type, payload) {
 const sound = new Sound();
 const store = {
   load() { try { return JSON.parse(localStorage.getItem('fevga.v1')) || {}; } catch { return {}; } },
-  save() { try { localStorage.setItem('fevga.v1', JSON.stringify({ level, score, muted: sound.muted, color: seatColor, theme: themeId, numbers: showNumbers, freeCam, autoEnd, openingPlay, light: lightLevel, match: matchOn, matchScore, view: savedView, lamp: lampOn, round: showRound, total: showTotal })); } catch { /* private mode */ } },
+  save() { try { localStorage.setItem('fevga.v1', JSON.stringify({ level, score, muted: sound.muted, color: seatColor, theme: themeId, numbers: showNumbers, freeCam, autoEnd, openingPlay, light: lightLevel, match: matchOn, matchScore, view: savedView, lamp: lampOn, round: showRound, total: showTotal, trails: showTrails })); } catch { /* private mode */ } },
 };
 const saved = store.load();
 let level = saved.level >= 1 && saved.level <= 5 ? saved.level : 3;
@@ -682,6 +731,8 @@ let themeId = themeById(saved.theme).id;                        // board style (
 let showNumbers = saved.numbers !== false;                      // rail point numbers (Settings)
 let showRound = saved.round === true;                           // round counter at the top (Settings)
 let showTotal = saved.total === true;                           // sum of the two dice in the move message (Settings)
+let showTrails = saved.trails !== false;                        // glowing arcs / rings for the computer's last move (Settings, on by default)
+trails.setEnabled(showTrails);
 // "6–5 (sum 11)": the dice for status messages; the sum only when the setting is on
 const diceLabel = (d) => `<b>${d[0]}–${d[1]}</b>${showTotal ? ` <span class="tot">(sum ${d[0] + d[1]})</span>` : ''}`;
 // Camera is locked by default: a click with a little drag used to orbit the board (and the
@@ -753,8 +804,10 @@ function computeDests(from) {
 }
 
 function clearMarks() {
-  for (let a = 0; a < 24; a++) { haloMeshes[a].visible = false; destMeshes[a].visible = false; triMeshes[a].visible = false; }
+  for (let a = 0; a < 24; a++) { haloMeshes[a].visible = false; destMeshes[a].visible = false; triMeshes[a].visible = false; triMeshes[a].material = mats.tri; }
   offDest.visible = false;
+  // a lesson keeps its goal points softly lit in green, whatever else is marked
+  if (puzzle && puzzle.lesson) for (const s of puzzle.lesson.goal) { const t = triMeshes[absOf(HUMAN, 25 - s)]; t.material = mats.triGoal; t.visible = true; }
 }
 
 function refreshMarks() {
@@ -844,6 +897,8 @@ function updateHud() {
   $('doneBtn').classList.toggle('ready', humanMove && !busy && T && turnDone(T));
   $('undoBtn').hidden = !humanMove;
   $('undoBtn').disabled = busy || !T || !T.played.length;
+  const lessonUndo = $('pzBtns').querySelector('[data-act="undo"]'); // a lesson's own Undo (landscape)
+  if (lessonUndo) lessonUndo.disabled = busy || phase !== 'human-move' || !T || !T.played.length;
   $('hintBtn').hidden = !humanMove || !!puzzle; // a puzzle is solved without help
   $('hintBtn').disabled = busy || !T || turnDone(T);
   $('makisBtn').hidden = !humanMove || !!puzzle;
@@ -851,8 +906,11 @@ function updateHud() {
   const resignOk = canResign();
   if (!resignOk) $('resignAsk').hidden = true;
   $('resignBtn').hidden = !resignOk || !$('resignAsk').hidden;
+  $('bar').classList.toggle('asking', !$('resignAsk').hidden); // landscape: the question takes the whole strip
   $('slamBtn').hidden = !!puzzle || !(phase === 'human-roll' || phase === 'human-move' || phase === 'opening' || phase === 'over');
   $('slamBtn').disabled = !canSlam();
+  $('moreBtn').hidden = ['hintBtn', 'makisBtn', 'resignBtn', 'slamBtn'].every((id) => $(id).hidden);
+  if ($('moreBtn').hidden) setMore(false);
   $('ovSlam').disabled = !canSlam();
   const noDouble = humanBorneOff();
   $('resignDouble').disabled = noDouble;
@@ -878,7 +936,7 @@ function startGame() {
   flushAnims();
   busy = false; T = null; curDice = null; selected = -1; legal = []; dests = new Map(); hintPath = null;
   if (replay) closeReplayUi();
-  if (puzzle) { puzzle = null; $('puzzle').hidden = true; } // a new game replaces the borrowed one too
+  if (puzzle) { puzzle = null; $('puzzle').hidden = true; lessonUiChanged(); } // a new game replaces the borrowed one too
   closeMakis();
   if (matchOn && Math.max(...matchScore) >= MATCH_TO) { matchScore = [0, 0]; store.save(); } // finished match -> new one
   applySeat(seatColor);
@@ -968,7 +1026,12 @@ async function openingRoll() {
 function beginHumanStep() {
   legal = turnSteps(T);
   selected = -1; dests = new Map();
-  if (turnDone(T) && autoEnd && T.played.length && !makis) { // never auto-end under Mr. Makis's demo
+  if (puzzle && puzzle.lesson && turnDone(T) && T.played.length) {
+    // a lesson checks itself a moment after the last die (Undo in that window cancels it)
+    setStatus('Move complete…');
+    const myT = T, p = puzzle;
+    wait(0.7).then(() => { if (puzzle === p && T === myT && phase === 'human-move' && !busy && turnDone(T)) lessonCheck(); });
+  } else if (turnDone(T) && autoEnd && T.played.length && !makis) { // never auto-end under Mr. Makis's demo
     // Settings > End my turn automatically: a short pause to see the last move; Undo in that
     // window replaces T, which cancels the auto-end
     setStatus('Move complete — ending your turn… <span style="opacity:.7">(Undo to take it back)</span>');
@@ -1020,7 +1083,7 @@ async function undo() {
 
 async function done() {
   if (busy || phase !== 'human-move' || !T || !turnDone(T)) return;
-  if (puzzle) return puzzleCheck(); // a puzzle's Done checks the answer instead of ending a turn
+  if (puzzle) return puzzle.lesson ? lessonCheck() : puzzleCheck(); // a puzzle's Done checks the answer instead of ending a turn
   endHumanTurn();
 }
 
@@ -1064,14 +1127,17 @@ async function cpuTurn(preset = null) {
     await wait(1.4);
   } else {
     setStatus(`Computer plays ${diceLabel(curDice)}`);
+    trails.clear(); // the previous turn's markers make way for this one's
     for (const st of steps) {
       const s = turnPlay(T, st);
       updateHud();
-      await moveChecker(CPU, s.from, s.to);
+      const mv = await moveChecker(CPU, s.from, s.to);
       if (my !== gid) return;
+      if (mv) trails.add(mv.start, mv.target);
       await wait(0.12);
     }
   }
+  trails.release(4); // stay a few seconds into the human's turn, then fade
   recordTurn(CPU, curDice, T.played);
   commitTurn(g, T);
   T = null; busy = false;
@@ -1122,7 +1188,12 @@ function finishGame(side, points, resigned = false) {
   }
   setStatus(matchWon ? (you ? 'You win the match!' : 'The computer wins the match') : resigned ? 'You admitted the loss' : (you ? 'You win!' : 'The computer wins'));
   if (you) sound.win(); else sound.lose();
-  setTimeout(() => $('overlay').classList.remove('hidden'), resigned ? 300 : 900);
+  // a win is celebrated first: the confetti flies over the open board, then the card comes up over
+  // a lighter backdrop (a loss gets the card straight away)
+  if (you) { confetti.burst(matchWon ? 'match' : points === 2 ? 'mars' : 'win'); sound.pop(); }
+  $('overlay').classList.toggle('celebrate', you);
+  const my = gid; // (a new game started during the wait must not get this card)
+  setTimeout(() => { if (my === gid && phase === 'over') $('overlay').classList.remove('hidden'); }, resigned ? 300 : you ? (matchWon || points === 2 ? 2600 : 2000) : 900);
 }
 
 // ---------------------------------------------------------------- admit loss
@@ -1563,6 +1634,11 @@ function mustOpenText(T) {
 }
 
 window.addEventListener('keydown', (e) => {
+  if (heroOpen()) { // the welcome screen: no game keys behind it; Esc / Enter / Space start playing
+    if (e.key === 'Escape') closeHero();
+    else if ((e.key === 'Enter' || e.key === ' ') && !/^(BUTTON|A)$/.test(e.target.tagName)) { e.preventDefault(); closeHero(); }
+    return;
+  }
   if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
   if (!$('games').classList.contains('hidden')) { if (e.key === 'Escape') { editing = null; $('games').classList.add('hidden'); } return; }
   if (!$('settings').classList.contains('hidden') && e.key !== 'Escape') return; // no game keys behind the sheet
@@ -1601,13 +1677,28 @@ $('hintBtn').onclick = hint;
 $('newBtn').onclick = () => { startGame(); };
 // Phones: colour and the brand buttons live in a ☰ dropdown (CSS shows it only there). It drops
 // over the scoreboard and closes after any choice, an outside tap or Esc.
+// In landscape the same state is a drawer (body.drawer): the menu, the full scoreboard and the lamp
+// row open together over the left side, and everything outside them is a transparent catcher.
 function setMenu(open) {
   $('brand').classList.toggle('open', open);
+  document.body.classList.toggle('drawer', open && hudMode() === 'land');
   $('menuBtn').setAttribute('aria-expanded', String(open));
 }
 $('menuBtn').onclick = () => setMenu(!$('brand').classList.contains('open'));
 $('brandMenu').addEventListener('click', (e) => { if (e.target.closest('button')) setMenu(false); });
-document.addEventListener('pointerdown', (e) => { if (!$('brand').contains(e.target)) setMenu(false); });
+document.addEventListener('pointerdown', (e) => {
+  const inside = hudMode() === 'land' ? e.target.closest('#brand, #board, #viewTools') : $('brand').contains(e.target);
+  if (!inside) setMenu(false);
+});
+// landscape: the mini scoreboard is also a tap target for the drawer
+$('board').addEventListener('click', () => { if (hudMode() === 'land' && !$('brand').classList.contains('open')) setMenu(true); });
+// landscape: Hint / Mr. Makis / Admit loss / Slam live behind ⋯ (CSS shows them while #bar.more)
+function setMore(open) {
+  $('bar').classList.toggle('more', open);
+  $('moreBtn').setAttribute('aria-expanded', String(open));
+}
+$('moreBtn').onclick = () => setMore(!$('bar').classList.contains('more'));
+$('buttons').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b && b.id !== 'moreBtn') setMore(false); });
 window.addEventListener('keydown', (e) => { if (e.key === 'Escape') setMenu(false); });
 for (const b of document.querySelectorAll('#seat button')) {
   b.onclick = () => {
@@ -1771,9 +1862,9 @@ function describeTurn(rec, i) {
 // the strategy guide's "after ten turns" figures describe. Live: the round in progress (the one
 // the game ended in, at game over). Replay: the round of the last move shown.
 function updateRound() {
-  const el = $('round');
-  if (el.hidden !== !showRound) { el.hidden = !showRound; positionHud(); }
-  if (!showRound) return;
+  const el = $('round'), want = showRound && !(puzzle && puzzle.lesson); // (a lesson has no rounds)
+  if (el.hidden !== !want) { el.hidden = !want; positionHud(); }
+  if (!want) return;
   let n, sub;
   if (puzzle) {
     n = puzzle.q.round; sub = `puzzle ${puzzle.q.id}`;
@@ -2068,6 +2159,7 @@ function enterPuzzle(q) {
   gid++; flushAnims();
   puzzle = { q, live, tries: 0 };
   $('puzzle').hidden = false;
+  lessonUiChanged(); // (a puzzle can follow a lesson: the lesson layout must go)
   $('pzTitle').textContent = `Puzzle ${q.id}`;
   $('pzSub').textContent = `${TIERS[q.tier].name} · ${q.theme}`;
   puzzleStart(true);
@@ -2141,6 +2233,7 @@ function exitPuzzle() {
   const L = puzzle.live;
   puzzle = null;
   $('puzzle').hidden = true;
+  lessonUiChanged();
   gid++; flushAnims();
   restoreLive(L);
 }
@@ -2148,6 +2241,7 @@ function exitPuzzle() {
 $('pzBtns').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-act]');
   if (!b || !puzzle || busy) return;
+  if (puzzle.lesson) return lessonAct(b.dataset.act);
   if (b.dataset.act === 'retry') puzzleStart(false);
   else if (b.dataset.act === 'show') puzzleShow();
   else if (b.dataset.act === 'next') nextPuzzle();
@@ -2176,6 +2270,145 @@ $('puzzlesBody').addEventListener('click', (e) => {
 });
 $('puzzlesBtn').onclick = () => { renderPuzzles(); $('puzzles').classList.remove('hidden'); };
 $('closePuzzles').onclick = () => $('puzzles').classList.add('hidden');
+
+// ================================================================ guided lessons (Learn)
+// Eight scripted positions from src/lessons.js, each introducing one rule. They ride on the puzzle
+// machinery: the live game is borrowed (snapshotLive / restoreLive), the normal turn code runs, and
+// `puzzle` is set - with `puzzle.lesson` - so hint, Mr. Makis, admit loss and slam stay off. A
+// lesson checks itself a moment after the last die (no Done needed); Show me plays the answer.
+// Progress lives in fevga.tutorial.v1 = { [lessonId]: true }.
+const TUT_KEY = 'fevga.tutorial.v1';
+let tutDone = (() => { try { const p = JSON.parse(localStorage.getItem(TUT_KEY)); return p && typeof p === 'object' ? p : {}; } catch { return {}; } })();
+const saveTut = () => { try { localStorage.setItem(TUT_KEY, JSON.stringify(tutDone)); } catch { /* private mode */ } };
+const lessonsDone = () => LESSONS.filter((l) => tutDone[l.id]).length;
+function updateLearnBtn() {
+  const n = lessonsDone();
+  $('learnBtn').textContent = n === LESSONS.length ? 'Learn ✓' : n ? `Learn ${n}/${LESSONS.length}` : 'Learn';
+}
+
+function enterLesson(i) {
+  if (!puzzle && (busy || phase === 'cpu' || phase === 'loading')) { toast('Wait for the computer to finish its move, then try again'); return; }
+  if (replay) exitReplay();
+  for (const id of ['puzzles', 'games', 'rules', 'settings']) $(id).classList.add('hidden');
+  closeMakis();
+  const live = puzzle ? puzzle.live : snapshotLive();
+  gid++; flushAnims();
+  puzzle = { q: lessonBoard(LESSONS[i]), live, tries: 0, lesson: LESSONS[i], i };
+  $('puzzle').hidden = false;
+  lessonUiChanged();
+  lessonStart(true);
+}
+
+// (Re)sets the lesson's position and hands the move to the player.
+function lessonStart(drop) {
+  const { q } = puzzle;
+  g = puzzleGame(q); turnStart = cloneGame(g); curDice = q.dice.slice();
+  T = createTurn(g, HUMAN, curDice);
+  phase = 'human-move'; busy = false; selected = -1; hintPath = null;
+  layoutCheckers(g, drop);
+  placeDice(curDice, HUMAN);
+  lessonPanel('task');
+  beginHumanStep();
+}
+
+// state: task | win | miss | shown
+function lessonPanel(state) {
+  const { lesson: L, i } = puzzle, last = i === LESSONS.length - 1;
+  $('pzTitle').textContent = `Lesson ${i + 1} of ${LESSONS.length}`;
+  $('pzSub').textContent = L.title;
+  const nav = LESSONS.map((l, k) => `<button class="ls-dot${k === i ? ' on' : ''}${tutDone[l.id] ? ' done' : ''}" data-lesson="${k}" title="${l.title}">${tutDone[l.id] ? '✓' : k + 1}</button>`).join('');
+  let body = `<div class="ls-nav">${nav}</div>`, btns;
+  const inGame = !!(puzzle.live && record && record.turns.length && puzzle.live.phase !== 'over');
+  const next = last ? `<button data-act="play" class="primary">${inGame ? 'Back to my game' : 'Play a game'}</button><button data-act="puzzles">Puzzles</button><button data-act="strategy">Strategy guide</button>`
+    : '<button data-act="next" class="primary">Next lesson</button>';
+  if (state === 'task') {
+    // (landscape phones: the rule is folded away so the panel leaves the board in view; one tap opens it)
+    body += `<details class="ls-teach"${hudMode() === 'land' ? '' : ' open'}><summary>The rule</summary>${L.teach}</details><p class="ls-task"><b>Your turn.</b> ${L.task}</p>`;
+    // (Undo here is for landscape, where the lesson hides the move strip; CSS hides it elsewhere)
+    btns = `<button data-act="undo" disabled>Undo</button><button data-act="show">Show me</button>${last ? '' : '<button data-act="next">Skip</button>'}`;
+  } else if (state === 'win') {
+    body += `<p class="pz-ok">✓ Lesson complete</p>${L.win}`;
+    btns = `<button data-act="retry">Again</button>${next}`;
+  } else if (state === 'miss') {
+    body += `<p class="pz-no">Not quite.</p>${L.miss}`;
+    btns = `<button data-act="retry" class="primary">Try again</button><button data-act="show">Show me</button>`;
+  } else { // shown
+    body += `<p><b>That is the play.</b></p>${L.win}`;
+    btns = `<button data-act="retry">Try it yourself</button>${next}`;
+  }
+  $('pzBody').innerHTML = body;
+  $('pzBtns').innerHTML = btns;
+}
+
+function lessonCheck() {
+  const p = puzzle, L = p.lesson;
+  p.tries++;
+  const right = L.check(T.v);
+  phase = 'puzzle'; selected = -1; clearMarks();
+  if (right) {
+    tutDone[L.id] = true; saveTut(); updateLearnBtn();
+    lessonPanel('win');
+    setStatus(`Lesson ${p.i + 1} complete`);
+    sound.win();
+    if (p.i === LESSONS.length - 1) { confetti.burst('mars'); sound.pop(); } // the last one: a mars, so celebrate it
+  } else {
+    lessonPanel('miss');
+    setStatus('Not quite — try again');
+    sound.nope();
+  }
+  updateHud();
+}
+
+async function lessonShow() {
+  const p = puzzle;
+  lessonStart(false);
+  $('pzBtns').innerHTML = '';
+  await playPath(pzPath(lessonSteps(p.lesson.answer)));
+  if (puzzle !== p) return;
+  phase = 'puzzle'; clearMarks();
+  lessonPanel('shown');
+  setStatus('Here is the play');
+  updateHud();
+}
+
+function lessonAct(act) {
+  const p = puzzle;
+  if (act === 'retry') lessonStart(false);
+  else if (act === 'undo') undo();
+  else if (act === 'show') lessonShow();
+  else if (act === 'next') { if (p.i + 1 < LESSONS.length) enterLesson(p.i + 1); else exitPuzzle(); }
+  else if (act === 'play') exitPuzzle();
+  else if (act === 'puzzles') { exitPuzzle(); renderPuzzles(); $('puzzles').classList.remove('hidden'); }
+  else if (act === 'strategy') openStrategy();
+}
+$('pzBody').addEventListener('click', (e) => {
+  const d = e.target.closest('.ls-dot');
+  if (d && puzzle && puzzle.lesson) enterLesson(+d.dataset.lesson);
+});
+// Learn: the first lesson not yet done (the first one when all are)
+const startLearning = () => { const i = LESSONS.findIndex((l) => !tutDone[l.id]); enterLesson(i < 0 ? 0 : i); };
+$('learnBtn').onclick = startLearning;
+$('rulesLearn').onclick = () => { $('rules').classList.add('hidden'); startLearning(); };
+updateLearnBtn();
+
+// ================================================================ welcome screen
+// A short welcome over the live board on the first visit (the veil covers it until the board is
+// ready); fevga.seen.v1 remembers it, and Rules > About brings it back. It is visible in the HTML by
+// default, so a returning visitor's copy is hidden here, before the first paint of the board.
+const HERO_KEY = 'fevga.seen.v1';
+const heroSeen = () => { try { return localStorage.getItem(HERO_KEY) === '1'; } catch { return false; } };
+const heroOpen = () => !$('hero').classList.contains('hidden');
+function closeHero() {
+  $('hero').classList.add('hidden');
+  try { localStorage.setItem(HERO_KEY, '1'); } catch { /* private mode: it will show again next visit */ }
+}
+function showHero() { $('hero').classList.remove('hidden'); $('heroPlay').focus(); }
+if (heroSeen()) $('hero').classList.add('hidden');
+$('heroPlay').onclick = closeHero;
+$('heroLearn').onclick = () => { closeHero(); startLearning(); };
+$('heroRules').onclick = () => { closeHero(); $('rules').classList.remove('hidden'); };
+$('heroStrategy').onclick = () => { closeHero(); openStrategy(); };
+$('rulesAbout').onclick = () => { $('rules').classList.add('hidden'); showHero(); };
 
 // ================================================================ games sheet (recent + saved)
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -2346,6 +2579,7 @@ function renderSettings() {
   $('optNumbers').checked = showNumbers;
   $('optRound').checked = showRound;
   $('optTotal').checked = showTotal;
+  $('optTrails').checked = showTrails;
   $('optSound').checked = !sound.muted;
   $('optFreeCam').checked = freeCam;
   $('optAutoEnd').checked = autoEnd;
@@ -2381,21 +2615,22 @@ const storeFavs = () => { try { localStorage.setItem(FAV_KEY, JSON.stringify(fav
 function snapshotSetup() {
   return {
     level, color: seatColor, light: lightLevel, lamp: lampOn, freeCam, view: freeCam ? null : savedView,
-    theme: themeId, numbers: showNumbers, round: showRound, total: showTotal, muted: sound.muted, autoEnd, openingPlay, match: matchOn,
+    theme: themeId, numbers: showNumbers, trails: showTrails, round: showRound, total: showTotal, muted: sound.muted, autoEnd, openingPlay, match: matchOn,
   };
 }
 function favSummary(s) {
   return [themeById(s.theme).name, LEVELS[s.level - 1].name, `plays ${s.color === 1 ? 'black' : 'white'}`,
     `light ${Math.round(s.light * 100)}%${s.lamp ? ' + retro lamp' : ''}`, s.freeCam ? 'free view' : (s.view ? 'view locked (own angle)' : 'view locked'),
     ...(s.match ? ['match to 5'] : []), ...(s.autoEnd ? ['auto-end turn'] : []), ...(s.openingPlay ? ['plays opening dice'] : []),
-    ...(s.numbers ? [] : ['no point numbers']), ...(s.round ? ['round counter'] : []), ...(s.total ? ['dice sum'] : []), ...(s.muted ? ['sound off'] : [])].join(' · ');
+    ...(s.numbers ? [] : ['no point numbers']), ...(s.trails === false ? ['no last-move markers'] : []), ...(s.round ? ['round counter'] : []), ...(s.total ? ['dice sum'] : []), ...(s.muted ? ['sound off'] : [])].join(' · ');
 }
 
 async function applyFavourite(f) {
   const s = f.s;
   if (themeById(s.theme).id !== themeId) { await applyTheme(s.theme); themeId = themeById(s.theme).id; }
-  showNumbers = s.numbers !== false; for (const p of railPlanes) p.visible = showNumbers;
+  showNumbers = s.numbers !== false; applyNumbers();
   showRound = !!s.round; showTotal = !!s.total;
+  showTrails = s.trails !== false; trails.setEnabled(showTrails);
   sound.setMuted(!!s.muted); $('muteBtn').textContent = sound.muted ? '🔇' : '🔊';
   autoEnd = !!s.autoEnd; openingPlay = !!s.openingPlay;
   if (!!s.match !== matchOn) { matchOn = !!s.match; matchScore = [0, 0]; } // same rule as the switch
@@ -2512,12 +2747,13 @@ $('favList').addEventListener('keydown', (e) => {
   else if (e.key === 'Escape') { e.stopPropagation(); favEdit = null; renderFavs(); }
 });
 $('closeSettings').onclick = () => $('settings').classList.add('hidden');
-$('optNumbers').onchange = (e) => { showNumbers = e.target.checked; for (const p of railPlanes) p.visible = showNumbers; store.save(); };
+$('optNumbers').onchange = (e) => { showNumbers = e.target.checked; applyNumbers(); store.save(); };
 $('optRound').onchange = (e) => { showRound = e.target.checked; updateRound(); store.save(); };
 $('optTotal').onchange = (e) => {
   showTotal = e.target.checked; store.save();
   if (phase === 'human-move' && T && !busy) beginHumanStep(); // the message in view picks the change up now
 };
+$('optTrails').onchange = (e) => { showTrails = e.target.checked; trails.setEnabled(showTrails); store.save(); };
 $('optSound').onchange = (e) => { sound.setMuted(!e.target.checked); $('muteBtn').textContent = sound.muted ? '🔇' : '🔊'; store.save(); };
 $('settingsView').onclick = () => { homeView(); $('settings').classList.add('hidden'); };
 $('optFreeCam').onchange = (e) => setFreeCam(e.target.checked);
@@ -2603,7 +2839,8 @@ function hudMode() {
 // Phones frame the home view in the screen rectangle the HUD leaves free:
 //  portrait - between the scoreboard and the lamp row + a bar reserved at its two-row height
 //    (140 px, so the board does not jump as buttons come and go);
-//  landscape - between the left rail (brand, score, lamp) and the move bar on the right.
+//  landscape - between the ☰ / mini-scoreboard strip (left) and the move bar (right); the drawer
+//    that ☰ opens floats over the board and never changes the band.
 // Returns null on desktop layouts, where the panels sit in the corners.
 function viewBand() {
   const w = window.innerWidth, h = window.innerHeight, mode = hudMode();
@@ -2615,9 +2852,13 @@ function viewBand() {
     return bottom - top > h * 0.3 ? { left: 0, right: w, top, bottom } : null;
   }
   if (mode === 'land') {
-    const left = Math.max(rect('brand').right, rect('board').right, rect('viewTools').right) + 4;
+    // left: the ☰ / mini-scoreboard strip (44 px wide; the drawer opens over the board, so its
+    // width must not count). right: the move bar, or the replay bar that takes its place
+    const left = rect('brand').left + 44 + 6;
     // the move bar, or the replay bar that takes its place during a replay
-    const rightPanel = !$('bar').hidden ? 'bar' : !$('replayBar').hidden ? 'replayBar' : null;
+    // (a lesson takes the move strip's place with its own panel, and hides the strip)
+    const lesson = !$('puzzle').hidden && puzzle && puzzle.lesson;
+    const rightPanel = lesson ? 'puzzle' : !$('bar').hidden ? 'bar' : !$('replayBar').hidden ? 'replayBar' : null;
     const right = (rightPanel ? rect(rightPanel).left : w) - 4;
     return right - left > w * 0.3 ? { left, right, top: 4, bottom: h - 4 } : null;
   }
@@ -2677,6 +2918,17 @@ function viewPosition() {
   camera.far = dist + 260; camera.updateProjectionMatrix();
   return controls.target.clone().add(dir.multiplyScalar(dist));
 }
+// A lesson in landscape swaps the move strip for its own panel on the right (body.lesson), so the
+// board is re-framed between the ☰ strip and that panel whenever a lesson opens or closes.
+let lessonUi = false;
+function lessonUiChanged() {
+  applyNumbers();
+  const on = !!(puzzle && puzzle.lesson);
+  document.body.classList.toggle('lesson', on);
+  if (on === lessonUi) return; // only a switch on / off re-frames the board (lesson to lesson does not)
+  lessonUi = on;
+  if (hudMode() === 'land') { if (savedView) viewPosition(); else resetView(true); }
+}
 function resetView(animate) {
   const to = viewPosition();
   if (animate) camAnim = { from: camera.position.clone(), to, t: 0, dur: 0.9 };
@@ -2701,19 +2953,20 @@ function positionHud() {
   const mute = $('muteBtn'), tools = $('viewTools');
   if (land && mute.parentElement !== tools) tools.insertBefore(mute, $('dimmerBox'));
   else if (!land && mute.parentElement === tools) document.body.insertBefore(mute, tools);
+  // (landscape: the scoreboard strip, the drawer and the lamp row are placed by CSS alone)
   const b = $('board');
-  b.style.top = hudMode() !== 'desk' ? `${Math.round($('brand').getBoundingClientRect().bottom + 8)}px` : '';
+  b.style.top = hudMode() === 'portrait' ? `${Math.round($('brand').getBoundingClientRect().bottom + 8)}px` : '';
   // the view tools (lock + dimmer) sit bottom-right; lift them above the bottom bar wherever they would overlap
   const d = $('viewTools'), bar = $('bar').getBoundingClientRect();
   d.style.bottom = '';
   const r = d.getBoundingClientRect();
-  if (r.left < bar.right && r.right > bar.left && r.bottom > bar.top) d.style.bottom = `${Math.round(window.innerHeight - bar.top + 8)}px`;
+  if (!land && r.left < bar.right && r.right > bar.left && r.bottom > bar.top) d.style.bottom = `${Math.round(window.innerHeight - bar.top + 8)}px`;
   // the round counter sits top centre; where the brand panel or the scoreboard is in the way
   // (narrow windows, phones) it moves into the scoreboard's footer as a compact "Round 8", since
   // anywhere below the panels it would cover the far rail of the board
   const rd = $('round');
   if (rd.classList.contains('inline')) { rd.classList.remove('inline'); document.body.insertBefore(rd, $('board')); }
-  if (!rd.hidden) {
+  if (!rd.hidden && !land) { // (landscape: it keeps the top-right corner)
     const rr = rd.getBoundingClientRect(), br = $('brand').getBoundingClientRect(), bo = $('board').getBoundingClientRect();
     const hit = (o) => rr.left < o.right && rr.right > o.left && rr.top < o.bottom && rr.bottom > o.top;
     if (hit(br) || hit(bo)) { rd.classList.add('inline'); $('board').querySelector('.foot').insertBefore(rd, $('resetScore')); }
@@ -2764,6 +3017,7 @@ function loop() {
 let fogBase = 100;
 function update(dt) {
   elapsed += dt;
+  trails.update(dt); confetti.update(dt);
   if (shakeT > 0) shakeT = Math.max(0, shakeT - dt);
   const camDist = camera.position.distanceTo(controls.target);
   scene.fog.near = Math.max(fogBase, camDist) + 25; scene.fog.far = scene.fog.near + 115;
@@ -2801,6 +3055,7 @@ function update(dt) {
   if (mats) {
     mats.halo.opacity = pulse; mats.dest.opacity = pulse; mats.hint.opacity = pulse;
     mats.tri.opacity = 0.42 + 0.18 * Math.sin(elapsed * 4.5);
+    mats.triGoal.opacity = 0.5 + 0.22 * Math.sin(elapsed * 3);
     mats.selHalo.opacity = 0.85 + 0.15 * Math.sin(elapsed * 6);
     if (selected >= 0 && stacks[selected].length) { // halo rides on the lifted checker
       const top = stacks[selected][stacks[selected].length - 1];
@@ -2829,6 +3084,7 @@ async function boot() {
   renderer.setAnimationLoop(loop);
   $('veil').classList.add('hidden');
   startGame();
+  if (heroOpen()) $('heroPlay').focus(); // (first visit: Enter or Space starts playing)
 }
 boot();
 
@@ -2838,6 +3094,7 @@ window.__fevga = {
   get legal() { return legal; }, get dests() { return dests; }, get level() { return level; },
   roll, done, undo, hint, select, playPath, startGame, computeDests,
   three: { camera, scene, renderer, controls },
+  viewBand, hudMode, trails, confetti, finishGame, throwDie, enterLesson, get puzzle() { return puzzle; },
   pickAt(clientX, clientY) { return pickPoint({ clientX, clientY }); },
   setTimeScale(s) { timeScale = s; },
   slam, get slamming() { return slamming; },

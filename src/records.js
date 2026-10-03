@@ -130,7 +130,7 @@ export function parseVbg(text) {
 
 // ---------------------------------------------------------------- .vbs settings files
 // UTF-8 JSON: { format: "fevga-vbs", version: 1, app, exportedAt, setup, favourites: [{ name, s }] }
-// where setup / s = { level, color, light, lamp, freeCam, view, theme, numbers, round, total, muted, autoEnd,
+// where setup / s = { level, color, light, lamp, freeCam, view, theme, numbers, trails, round, total, muted, autoEnd,
 // openingPlay, match }. (.vbs was Manos's choice; it is also the Windows VBScript extension, so
 // mail filters may block it - the content is plain JSON and never executed by the game.)
 // Imports are untrusted: every field is type-checked and clamped; unknown fields are dropped.
@@ -155,7 +155,7 @@ export function cleanSetup(s) {
     light: Number.isFinite(s.light) ? Math.min(1.6, Math.max(0.25, s.light)) : 1,
     lamp: b(s.lamp), freeCam: b(s.freeCam), view: b(s.freeCam) ? null : view,
     theme: typeof s.theme === 'string' ? s.theme.slice(0, 40) : 'walnut',
-    numbers: s.numbers !== false, round: b(s.round), total: b(s.total), muted: b(s.muted), autoEnd: b(s.autoEnd), openingPlay: b(s.openingPlay), match: b(s.match),
+    numbers: s.numbers !== false, trails: s.trails !== false, round: b(s.round), total: b(s.total), muted: b(s.muted), autoEnd: b(s.autoEnd), openingPlay: b(s.openingPlay), match: b(s.match),
   };
 }
 

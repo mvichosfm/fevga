@@ -1,7 +1,7 @@
 {
   "name": "fevga-android",
   "private": true,
-  "version": "1.9.0",
+  "version": "2.3.0",
   "description": "Capacitor wrapper that packages the Fevga web game as an Android APK",
   "type": "module",
   "scripts": {
