@@ -277,7 +277,10 @@ export function finalPositions(v, rem, trap = trapPoint(v)) {
       const fk = keyOf(v.mine, v.myOff);
       if (steps.length > maxLen) maxLen = steps.length;
       const prev = leaves.get(fk);
-      if (!prev || prev.steps.length < steps.length) {
+      // Two single steps reaching the same position (e.g. bearing off the last checker with
+      // either die): keep the larger die, so the larger-die filter below and turnSteps agree.
+      if (!prev || prev.steps.length < steps.length ||
+          (steps.length === 1 && prev.steps.length === 1 && steps[0].d > prev.steps[0].d)) {
         leaves.set(fk, { steps: steps.slice(), mine: Int8Array.from(v.mine), myOff: v.myOff, n: steps.length });
       }
     }
@@ -489,6 +492,34 @@ function rollout(v, rnd) {
     p = 1 - p;
   }
   return 0;
+}
+
+/**
+ * Winning chances for the board as it stands: `rollouts` play-outs of game `g` with side `toMove`
+ * to roll, both sides playing the tuned greedy policy (the same one Mr. Makis's estimates use, so
+ * the numbers agree with his). Fractions are from WHITE's (side 0) point of view: `white` = P(white
+ * wins), `whiteMars` / `blackMars` = P(white / black wins double). Black's chance is 1 - white.
+ * Estimates, not exact: about +-3 points at 300 play-outs.
+ */
+export function winChances(g, toMove, { rollouts = 300, seed = 1 } = {}) {
+  const w0 = winner(g);
+  if (w0) return { white: w0.p === 0 ? 1 : 0, whiteMars: w0.p === 0 && w0.points === 2 ? 1 : 0, blackMars: w0.p === 1 && w0.points === 2 ? 1 : 0, rollouts: 0 };
+  let win = 0, wm = 0, bm = 0;
+  for (let i = 0; i < rollouts; i++) {
+    const rnd = mulberry(seed * 104729 + i);
+    const sim = cloneGame(g);
+    let p = toMove, r = 0;
+    for (let turn = 0; turn < 600; turn++) {
+      const w = winner(sim);
+      if (w) { r = w.p === 0 ? w.points : -w.points; break; }
+      const d = [1 + Math.floor(rnd() * 6), 1 + Math.floor(rnd() * 6)];
+      applySteps(sim, p, chooseMove(sim, p, d, 4, rnd));
+      p = 1 - p;
+    }
+    if (r > 0) win++;
+    if (r === 2) wm++; else if (r === -2) bm++;
+  }
+  return { white: win / rollouts, whiteMars: wm / rollouts, blackMars: bm / rollouts, rollouts };
 }
 
 /**

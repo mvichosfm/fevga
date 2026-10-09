@@ -4,7 +4,7 @@ import { RoomEnvironment } from '../vendor/RoomEnvironment.js';
 import { RoundedBoxGeometry } from '../vendor/RoundedBoxGeometry.js';
 import {
   newGame, cloneGame, createTurn, turnSteps, turnPlay, turnDone, commitTurn, winner,
-  absOf, LEVELS, chooseMove, rollDice, applySteps, analyzeView, S, screenTurns, reviewTurn, playKey, describePlay, positionFacts,
+  absOf, LEVELS, chooseMove, rollDice, applySteps, analyzeView, S, screenTurns, reviewTurn, playKey, describePlay, positionFacts, winChances,
 } from './engine.js';
 import { PUZZLES } from './puzzles.js';
 import { aoTexture, ringTexture, triGlowTexture, dieTextures, boardShadowTexture } from './textures.js';
@@ -706,6 +706,18 @@ function askMakis(view, rem, trap) {
   });
 }
 
+// Winning chances of the board as it stands (Settings > Display): play-outs on the worker.
+function askOdds(game, toMove) {
+  return new Promise((res) => {
+    const opts = { rollouts: 300, seed: (Date.now() & 0xffff) + 1 };
+    const local = () => res(winChances(cloneGame(game), toMove, opts));
+    if (!worker) return local();
+    const id = ++reqId;
+    pending.set(id, (a) => (a ? res(a) : local()));
+    worker.postMessage({ id, type: 'odds', g: { pos: [Array.from(game.pos[0]), Array.from(game.pos[1])], off: game.off.slice() }, toMove, opts });
+  });
+}
+
 // Mistake review jobs (screenTurns / reviewTurn) on the worker, main thread as a fallback.
 function askReview(type, payload) {
   return new Promise((res) => {
@@ -721,7 +733,7 @@ function askReview(type, payload) {
 const sound = new Sound();
 const store = {
   load() { try { return JSON.parse(localStorage.getItem('fevga.v1')) || {}; } catch { return {}; } },
-  save() { try { localStorage.setItem('fevga.v1', JSON.stringify({ level, score, muted: sound.muted, color: seatColor, theme: themeId, numbers: showNumbers, freeCam, autoEnd, openingPlay, light: lightLevel, match: matchOn, matchScore, view: savedView, lamp: lampOn, round: showRound, total: showTotal, trails: showTrails })); } catch { /* private mode */ } },
+  save() { try { localStorage.setItem('fevga.v1', JSON.stringify({ level, score, muted: sound.muted, color: seatColor, theme: themeId, numbers: showNumbers, freeCam, autoEnd, openingPlay, light: lightLevel, match: matchOn, matchScore, view: savedView, lamp: lampOn, round: showRound, total: showTotal, odds: showOdds, trails: showTrails })); } catch { /* private mode */ } },
 };
 const saved = store.load();
 let level = saved.level >= 1 && saved.level <= 5 ? saved.level : 3;
@@ -731,7 +743,8 @@ let themeId = themeById(saved.theme).id;                        // board style (
 let showNumbers = saved.numbers !== false;                      // rail point numbers (Settings)
 let showRound = saved.round === true;                           // round counter at the top (Settings)
 let showTotal = saved.total === true;                           // sum of the two dice in the move message (Settings)
-let showTrails = saved.trails !== false;                        // glowing arcs / rings for the computer's last move (Settings, on by default)
+let showOdds = saved.odds === true;                             // winning chances of both sides in the scoreboard (Settings)
+let showTrails = saved.trails !== false;                       // glowing arcs / rings for the computer's last move (Settings, on by default)
 trails.setEnabled(showTrails);
 // "6–5 (sum 11)": the dice for status messages; the sum only when the setting is on
 const diceLabel = (d) => `<b>${d[0]}–${d[1]}</b>${showTotal ? ` <span class="tot">(sum ${d[0] + d[1]})</span>` : ''}`;
@@ -905,19 +918,25 @@ function updateHud() {
   $('makisBtn').disabled = busy || !T || turnDone(T) || !!makis;
   const resignOk = canResign();
   if (!resignOk) $('resignAsk').hidden = true;
-  $('resignBtn').hidden = !resignOk || !$('resignAsk').hidden;
-  $('bar').classList.toggle('asking', !$('resignAsk').hidden); // landscape: the question takes the whole strip
+  if (!resignOk) $('cpuQuitAsk').hidden = true;
+  const asking = !$('resignAsk').hidden || !$('cpuQuitAsk').hidden;
+  $('resignBtn').hidden = !resignOk || asking;
+  $('cpuQuitBtn').hidden = !resignOk || asking;
+  $('bar').classList.toggle('asking', asking); // landscape: the question takes the whole strip
   $('slamBtn').hidden = !!puzzle || !(phase === 'human-roll' || phase === 'human-move' || phase === 'opening' || phase === 'over');
   $('slamBtn').disabled = !canSlam();
-  $('moreBtn').hidden = ['hintBtn', 'makisBtn', 'resignBtn', 'slamBtn'].every((id) => $(id).hidden);
+  $('moreBtn').hidden = ['hintBtn', 'makisBtn', 'resignBtn', 'cpuQuitBtn', 'slamBtn'].every((id) => $(id).hidden);
   if ($('moreBtn').hidden) setMore(false);
   $('ovSlam').disabled = !canSlam();
   const noDouble = humanBorneOff();
   $('resignDouble').disabled = noDouble;
   $('resignDouble').title = noDouble ? 'You have borne off a checker, so the computer can no longer win double' : '';
+  $('cpuQuitDouble').disabled = cpuBorneOff();
+  $('cpuQuitDouble').title = cpuBorneOff() ? 'The computer has borne off a checker, so you can no longer win double' : '';
   $('turnYou').classList.toggle('on', phase === 'human-roll' || phase === 'human-move');
   $('turnCpu').classList.toggle('on', phase === 'cpu');
   updateRound();
+  updateOdds();
   // dim used dice in the scene
   if (curDice && T && (phase === 'human-move' || phase === 'cpu')) {
     const used = T.played.length;
@@ -1172,7 +1191,9 @@ function finishGame(side, points, resigned = false) {
   updateHud();
   clearMarks();
   const you = side === 0;
-  const how = resigned
+  const how = resigned === 'cpu'
+    ? `The computer quit — you take a ${points === 2 ? 'double' : 'single'} win. +${points} point${points > 1 ? 's' : ''}.`
+    : resigned
     ? `You admitted the loss — the computer takes a ${points === 2 ? 'double' : 'single'} win. +${points} point${points > 1 ? 's' : ''}.`
     : `${you ? 'You' : 'The computer'} bore off all fifteen checkers${points === 2 ? ' before the other side bore off a single one' : ''}. +${points} point${points > 1 ? 's' : ''}.`;
   if (matchWon) {
@@ -1180,13 +1201,13 @@ function finishGame(side, points, resigned = false) {
     $('ovText').textContent = `${how} Final score ${matchScore[0]}–${matchScore[1]} in a match to ${MATCH_TO} vs ${LEVELS[level - 1].name}.`;
     $('ovNew').textContent = 'New match';
   } else {
-    $('ovTitle').textContent = resigned ? 'You admitted the loss' : you ? (points === 2 ? 'Mars! You win double' : 'You win!') : (points === 2 ? 'Mars — the computer wins double' : 'The computer wins');
+    $('ovTitle').textContent = resigned === 'cpu' ? (points === 2 ? 'The computer quit — double win' : 'The computer quit — you win') : resigned ? 'You admitted the loss' : you ? (points === 2 ? 'Mars! You win double' : 'You win!') : (points === 2 ? 'Mars — the computer wins double' : 'The computer wins');
     $('ovText').textContent = matchOn
       ? `${how} Match: you ${matchScore[0]} – ${matchScore[1]} computer, first to ${MATCH_TO}.`
       : `${how} Score ${score[0]}–${score[1]} vs ${LEVELS[level - 1].name}.`;
     $('ovNew').textContent = matchOn ? 'Next game' : 'Play again';
   }
-  setStatus(matchWon ? (you ? 'You win the match!' : 'The computer wins the match') : resigned ? 'You admitted the loss' : (you ? 'You win!' : 'The computer wins'));
+  setStatus(matchWon ? (you ? 'You win the match!' : 'The computer wins the match') : resigned === 'cpu' ? 'The computer quit' : resigned ? 'You admitted the loss' : (you ? 'You win!' : 'The computer wins'));
   if (you) sound.win(); else sound.lose();
   // a win is celebrated first: the confetti flies over the open board, then the card comes up over
   // a lighter backdrop (a loss gets the card straight away)
@@ -1195,6 +1216,52 @@ function finishGame(side, points, resigned = false) {
   const my = gid; // (a new game started during the wait must not get this card)
   setTimeout(() => { if (my === gid && phase === 'over') $('overlay').classList.remove('hidden'); }, resigned ? 300 : you ? (matchWon || points === 2 ? 2600 : 2000) : 900);
 }
+
+// ---------------------------------------------------------------- winning chances
+// Scoreboard block (Settings > Display > Show winning chances). The board is judged where it stands
+// at the start of the turn in progress (committed position; whoever is to roll), by 300 play-outs
+// on the worker; recomputed once per committed turn, not per click. Estimates, about +-3 points.
+let oddsKey = '';
+function updateOdds() {
+  const el = $('odds');
+  const want = showOdds && !!g && !puzzle && !replay && (phase === 'human-roll' || phase === 'human-move' || phase === 'cpu' || phase === 'over');
+  if (el.hidden !== !want) { el.hidden = !want; positionHud(); }
+  if (!want) { oddsKey = ''; return; }
+  const key = `${gid}:${record ? record.turns.length : 0}:${phase === 'over' ? 'o' : phase === 'cpu' ? 'c' : 'h'}`;
+  if (key === oddsKey) return;
+  oddsKey = key;
+  el.classList.add('busy');
+  askOdds(g, phase === 'cpu' ? CPU : HUMAN).then((r) => {
+    if (key !== oddsKey) return; // the board moved on while the play-outs ran
+    el.classList.remove('busy');
+    const you = HUMAN === 0 ? r.white : 1 - r.white;
+    const youMars = HUMAN === 0 ? r.whiteMars : r.blackMars, cpuMars = HUMAN === 0 ? r.blackMars : r.whiteMars;
+    const py = Math.round(you * 100);
+    $('oddsYou').textContent = `${py}%`; $('oddsCpu').textContent = `${100 - py}%`;
+    $('oddsBarYou').style.width = `${py}%`; $('oddsBarCpu').style.width = `${100 - py}%`;
+    const mars = [];
+    if (youMars >= 0.005) mars.push(`you win double ${Math.round(youMars * 100)}%`);
+    if (cpuMars >= 0.005) mars.push(`computer wins double ${Math.round(cpuMars * 100)}%`);
+    $('oddsMars').textContent = mars.join(' · ');
+  });
+}
+
+// ---------------------------------------------------------------- computer quits
+// The mirror of Admit loss: the player makes the computer concede, a single (1 point) or double
+// (2 points) win for the player. Same moments as Admit loss (the player's turn, or before the
+// first roll). A double is offered only while the computer has no checker off, as for a real mars.
+const cpuBorneOff = () => !!g && g.off[CPU] > 0;
+function cpuQuit(points) {
+  if (!canResign() || (points === 2 && cpuBorneOff())) return;
+  gid++; flushAnims(); closeMakis();
+  selected = -1; hintPath = null; T = null;
+  $('cpuQuitAsk').hidden = true;
+  finishGame(0, points, 'cpu');
+}
+$('cpuQuitBtn').onclick = () => { if (canResign()) { $('resignAsk').hidden = true; $('cpuQuitAsk').hidden = false; updateHud(); } };
+$('cpuQuitNo').onclick = () => { $('cpuQuitAsk').hidden = true; updateHud(); };
+$('cpuQuitSingle').onclick = () => cpuQuit(1);
+$('cpuQuitDouble').onclick = () => cpuQuit(2);
 
 // ---------------------------------------------------------------- admit loss
 // Main-screen button: the human concedes, choosing a single (1 point) or double (2 points) loss.
@@ -1210,9 +1277,9 @@ function resign(points) {
   closeMakis();
   selected = -1; hintPath = null; T = null;
   $('resignAsk').hidden = true;
-  finishGame(1, points, true);
+  finishGame(1, points, 'you');
 }
-$('resignBtn').onclick = () => { if (canResign()) { $('resignAsk').hidden = false; updateHud(); } };
+$('resignBtn').onclick = () => { if (canResign()) { $('cpuQuitAsk').hidden = true; $('resignAsk').hidden = false; updateHud(); } };
 $('resignNo').onclick = () => { $('resignAsk').hidden = true; updateHud(); };
 $('resignSingle').onclick = () => resign(1);
 $('resignDouble').onclick = () => resign(2);
@@ -2579,6 +2646,7 @@ function renderSettings() {
   $('optNumbers').checked = showNumbers;
   $('optRound').checked = showRound;
   $('optTotal').checked = showTotal;
+  $('optOdds').checked = showOdds;
   $('optTrails').checked = showTrails;
   $('optSound').checked = !sound.muted;
   $('optFreeCam').checked = freeCam;
@@ -2615,21 +2683,21 @@ const storeFavs = () => { try { localStorage.setItem(FAV_KEY, JSON.stringify(fav
 function snapshotSetup() {
   return {
     level, color: seatColor, light: lightLevel, lamp: lampOn, freeCam, view: freeCam ? null : savedView,
-    theme: themeId, numbers: showNumbers, trails: showTrails, round: showRound, total: showTotal, muted: sound.muted, autoEnd, openingPlay, match: matchOn,
+    theme: themeId, numbers: showNumbers, trails: showTrails, round: showRound, total: showTotal, odds: showOdds, muted: sound.muted, autoEnd, openingPlay, match: matchOn,
   };
 }
 function favSummary(s) {
   return [themeById(s.theme).name, LEVELS[s.level - 1].name, `plays ${s.color === 1 ? 'black' : 'white'}`,
     `light ${Math.round(s.light * 100)}%${s.lamp ? ' + retro lamp' : ''}`, s.freeCam ? 'free view' : (s.view ? 'view locked (own angle)' : 'view locked'),
     ...(s.match ? ['match to 5'] : []), ...(s.autoEnd ? ['auto-end turn'] : []), ...(s.openingPlay ? ['plays opening dice'] : []),
-    ...(s.numbers ? [] : ['no point numbers']), ...(s.trails === false ? ['no last-move markers'] : []), ...(s.round ? ['round counter'] : []), ...(s.total ? ['dice sum'] : []), ...(s.muted ? ['sound off'] : [])].join(' · ');
+    ...(s.numbers ? [] : ['no point numbers']), ...(s.trails === false ? ['no last-move markers'] : []), ...(s.round ? ['round counter'] : []), ...(s.total ? ['dice sum'] : []), ...(s.odds ? ['winning chances'] : []), ...(s.muted ? ['sound off'] : [])].join(' · ');
 }
 
 async function applyFavourite(f) {
   const s = f.s;
   if (themeById(s.theme).id !== themeId) { await applyTheme(s.theme); themeId = themeById(s.theme).id; }
   showNumbers = s.numbers !== false; applyNumbers();
-  showRound = !!s.round; showTotal = !!s.total;
+  showRound = !!s.round; showTotal = !!s.total; showOdds = !!s.odds; updateOdds();
   showTrails = s.trails !== false; trails.setEnabled(showTrails);
   sound.setMuted(!!s.muted); $('muteBtn').textContent = sound.muted ? '🔇' : '🔊';
   autoEnd = !!s.autoEnd; openingPlay = !!s.openingPlay;
@@ -2753,6 +2821,7 @@ $('optTotal').onchange = (e) => {
   showTotal = e.target.checked; store.save();
   if (phase === 'human-move' && T && !busy) beginHumanStep(); // the message in view picks the change up now
 };
+$('optOdds').onchange = (e) => { showOdds = e.target.checked; store.save(); updateOdds(); };
 $('optTrails').onchange = (e) => { showTrails = e.target.checked; trails.setEnabled(showTrails); store.save(); };
 $('optSound').onchange = (e) => { sound.setMuted(!e.target.checked); $('muteBtn').textContent = sound.muted ? '🔇' : '🔊'; store.save(); };
 $('settingsView').onclick = () => { homeView(); $('settings').classList.add('hidden'); };

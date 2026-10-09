@@ -35,6 +35,10 @@
   select option { background:#21170f; color:var(--ink); }
   #menuBtn { display:none; }
   #brandMenu { display:contents; } /* a dropdown on phones only (see the max-width:700px block) */
+  /* the seven menu buttons in a tidy grid: three equal columns, the last one full width, edge to edge */
+  #brand #menuRow { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+  #brand #menuRow button { min-width:0; padding-left:4px; padding-right:4px; white-space:nowrap; }
+  #brand #menuRow #puzzlesBtn { grid-column:1 / -1; }
   #seat button { flex:1; display:flex; align-items:center; justify-content:center; gap:8px; padding:7px 10px; }
   #seat button .dot { width:13px; height:13px; }
   #seat button.on { border-color:var(--gold); background:rgba(232,183,90,.16); box-shadow:0 0 0 1px var(--gold) inset; }
@@ -60,6 +64,22 @@
   .side .meta { grid-column:2; font-size:11.5px; color:var(--dim); }
   #board .foot { display:flex; justify-content:space-between; align-items:center; margin-top:6px; font-size:11px; color:var(--dim); padding:0 8px; }
   #board .foot b { color:var(--gold); font-weight:600; }
+  /* winning chances (Settings > Display): a split bar, you on the left, the computer on the right */
+  #board .odds { margin-top:8px; padding:0 8px; font-size:11.5px; color:var(--dim); }
+  #board .odds[hidden] { display:none; }
+  #board .odds .ob { display:flex; height:9px; border-radius:5px; overflow:hidden; margin:4px 0 3px; background:rgba(255,255,255,.08); }
+  #board .odds .ob i { display:block; height:100%; transition:width .5s ease; }
+  #board .odds .ob .y { background:#e9d9b4; }
+  #board .odds .ob .c { background:#5c4a3a; }
+  #board .odds .ol { display:flex; justify-content:space-between; font-variant-numeric:tabular-nums; }
+  #board .odds .ol b { color:var(--ink); font-weight:600; }
+  #board .odds .om { font-size:10.5px; margin-top:1px; opacity:.85; }
+  #board .odds.busy .ol b { opacity:.55; }
+  /* the question on top, Single / Double side by side on one row, Keep playing under them (every layout) */
+  #cpuQuitAsk { display:grid; grid-template-columns:1fr 1fr; align-items:center; gap:8px; font-size:13.5px; text-align:center; }
+  #cpuQuitAsk > span, #cpuQuitAsk #cpuQuitNo { grid-column:1 / -1; justify-self:center; }
+  #cpuQuitAsk b { color:#a8d8b0; }
+  #cpuQuitAsk button { padding:7px 12px; }
   .link { background:none; border:none; color:var(--dim); text-decoration:underline; padding:0; font-size:11px; cursor:pointer; }
   .link:hover { color:var(--ink); background:none; }
 
@@ -319,6 +339,7 @@
     #board { min-width:0; padding:4px 6px; display:flex; flex-wrap:wrap; gap:2px 4px; }
     #board .side { flex:1; min-width:0; padding:3px 6px; gap:0 8px; }
     #board .foot { width:100%; margin-top:0; }
+    #board .odds { width:100%; margin-top:2px; padding:0 4px; }
     #resetScore { margin-left:auto; }
     #levelFoot { display:none; }
     .side .nm { font-size:13px; }
@@ -343,6 +364,11 @@
     #board { left:16px; right:16px; }
     #muteBtn { bottom:auto; top:max(16px, env(safe-area-inset-top)); right:16px; }
     #viewTools { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 8px); flex-direction:row-reverse; }
+    /* during a game only Roll / Done / Undo show; Hint, Mr. Makis, Admit loss, Computer quits and Slam
+       wait behind ⋯ (the same mechanism as landscape) */
+    #bar #moreBtn { display:block; font-size:19px; min-width:44px; } /* (#bar #: beats the later "#moreBtn {display:none}") */
+    #bar:not(.more) #hintBtn, #bar:not(.more) #makisBtn, #bar:not(.more) #resignBtn, #bar:not(.more) #cpuQuitBtn, #bar:not(.more) #slamBtn { display:none; }
+    #bar.more #moreBtn { border-color:var(--gold); background:rgba(232,183,90,.16); }
   }
   /* phones in landscape (or any window under 500 px tall): the board comes first. Closed, only two
      slim strips sit beside it - ☰ with a mini scoreboard on the left, the move controls on the right
@@ -360,7 +386,7 @@
     #board { left:max(8px, env(safe-area-inset-left)); right:auto; top:calc(max(8px, env(safe-area-inset-top)) + 52px); width:44px;
       padding:4px 0; flex-direction:column; flex-wrap:nowrap; gap:2px; cursor:pointer; }
     #board .side { display:flex; flex-direction:column; align-items:center; flex:none; gap:1px; padding:4px 0; }
-    #board .side .nm, #board .side .of, #board .side .pl, #board .foot { display:none; }
+    #board .side .nm, #board .side .of, #board .side .pl, #board .foot, #board .odds { display:none; }
     #board .dot { width:13px; height:13px; }
     .side .sc { grid-row:auto; font-size:18px; text-align:center; }
     .side .meta { font-size:10.5px; white-space:nowrap; }
@@ -378,6 +404,7 @@
     body.drawer #board .side .of, body.drawer #board .side .pl { display:inline; }
     body.drawer #board .side .meta { grid-column:2 / -1; }
     body.drawer #board .foot { display:flex; padding:2px 4px 0; }
+    body.drawer #board .odds:not([hidden]) { display:block; width:100%; padding:0 4px; }
     #resetScore { padding:4px 0; }
     body.drawer #viewTools { display:flex; left:calc(max(8px, env(safe-area-inset-left)) + 268px); right:auto; bottom:max(8px, env(safe-area-inset-bottom)); width:190px; z-index:4;
       flex-direction:row; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:6px 4px; }
@@ -397,11 +424,13 @@
     #buttons button { padding:3px 4px; min-width:0; min-height:38px; font-size:13px; line-height:1.12; }
     #buttons button.primary { grid-column:1 / -1; order:-1; }
     #moreBtn { display:block; font-size:19px; }
-    #bar:not(.more) #hintBtn, #bar:not(.more) #makisBtn, #bar:not(.more) #resignBtn, #bar:not(.more) #slamBtn { display:none; }
+    #bar:not(.more) #hintBtn, #bar:not(.more) #makisBtn, #bar:not(.more) #resignBtn, #bar:not(.more) #cpuQuitBtn, #bar:not(.more) #slamBtn { display:none; }
     #bar.more #moreBtn { border-color:var(--gold); background:rgba(232,183,90,.16); }
     #resignAsk { display:flex; flex-direction:column; gap:6px; font-size:12.5px; }
+    #cpuQuitAsk { gap:6px; font-size:12.5px; }
+    #resignAsk[hidden], #cpuQuitAsk[hidden] { display:none; }
     #bar.asking #statusRow, #bar.asking #buttons { display:none; }
-    #resignAsk button { padding:5px 6px; min-height:34px; font-size:12.5px; line-height:1.15; }
+    #cpuQuitAsk button, #resignAsk button { padding:5px 6px; min-height:34px; font-size:12.5px; line-height:1.15; }
     /* the round counter has the top-right corner to itself */
     #round { left:auto; right:max(8px, env(safe-area-inset-right)); transform:none; padding:5px 12px 6px; }
     #toast { bottom:max(8px, env(safe-area-inset-bottom)); }
@@ -446,7 +475,7 @@
     <button data-color="0" class="on"><span class="dot w"></span>White</button>
     <button data-color="1"><span class="dot b"></span>Black</button>
   </div>
-  <div class="row">
+  <div class="row" id="menuRow">
     <button id="newBtn">New game</button>
     <button id="learnBtn" title="Eight short guided lessons on the real board, one rule each">Learn</button>
     <button id="rulesBtn">Rules</button>
@@ -471,6 +500,11 @@
     <span class="meta" title="Pips (distance left to travel)"><span class="pl">Pips </span><b id="pipCpu">360</b><span class="of"> · Off <b id="offCpu">0</b></span></span>
   </div>
   <div class="foot"><span id="levelFoot">Level: <b id="levelName"></b></span><b id="matchInfo" hidden></b><button class="link" id="resetScore">reset score</button></div>
+  <div class="odds" id="odds" hidden title="Estimated chances of winning from the board as it stands, from 300 computer play-outs (Settings › Show winning chances)">
+    <div class="ol"><span>You <b id="oddsYou">–</b></span><span>Computer <b id="oddsCpu">–</b></span></div>
+    <div class="ob"><i class="y" id="oddsBarYou" style="width:50%"></i><i class="c" id="oddsBarCpu" style="width:50%"></i></div>
+    <div class="om" id="oddsMars"></div>
+  </div>
 </div>
 
 <div id="stratSheet" hidden><iframe id="stratFrame" title="Strategy guide"></iframe></div>
@@ -487,14 +521,21 @@
     <button id="makisBtn" class="makis" hidden title="Mr. Makis shows what a level-10 player would do, and why">Mr. Makis<kbd>M</kbd></button>
     <button id="doneBtn" class="primary" hidden>Done<kbd>Enter</kbd></button>
     <button id="resignBtn" class="resign" hidden title="Concede this game as a single (1 point) or double (2 points) loss">Admit loss</button>
+    <button id="cpuQuitBtn" class="resign" hidden title="Make the computer quit this game: you win 1 point (single) or 2 points (double)">Computer quits</button>
     <button id="slamBtn" class="slam" hidden title="Angry? Slam the board shut. Just for fun: the game carries on exactly where it was">Slam!<kbd>S</kbd></button>
-    <button id="moreBtn" hidden aria-expanded="false" title="More: Hint, Mr. Makis, Admit loss, Slam" aria-label="More actions">⋯</button>
+    <button id="moreBtn" hidden aria-expanded="false" title="More: Hint, Mr. Makis, Admit loss, Computer quits, Slam" aria-label="More actions">⋯</button>
   </div>
   <div id="resignAsk" hidden>
     <span>Admit the loss? Choose what the computer scores:</span>
     <button id="resignSingle" class="danger">Single loss (1 point)</button>
     <button id="resignDouble" class="danger">Double loss (2 points)</button>
     <button id="resignNo">Keep playing</button>
+  </div>
+  <div id="cpuQuitAsk" hidden>
+    <span>Make the computer quit? Choose what you score:</span>
+    <button id="cpuQuitSingle" class="danger" title="Single win: you score 1 point">Single (1 pt)</button>
+    <button id="cpuQuitDouble" class="danger" title="Double win: you score 2 points">Double (2 pts)</button>
+    <button id="cpuQuitNo">Keep playing</button>
   </div>
 </div>
 <button id="muteBtn" class="panel" title="Sound">🔊</button>
@@ -687,6 +728,7 @@
     <label class="opt"><input type="checkbox" id="optTrails"> Show the computer's last move — glowing arcs and rings from where its checkers left to where they landed, for a few seconds</label>
     <label class="opt"><input type="checkbox" id="optRound"> Round counter at the top — round 10 is each side's tenth turn, the moment the strategy guide's "after ten turns" figures describe</label>
     <label class="opt"><input type="checkbox" id="optTotal"> Show the sum of the two dice in the move message — a 6–5 reads "(sum 11)"</label>
+    <label class="opt"><input type="checkbox" id="optOdds"> Show winning chances — your chance and the computer's, estimated from computer play-outs of the board as it stands (updated each turn)</label>
     <label class="opt"><input type="checkbox" id="optSound"> Sound effects</label>
     <label class="opt"><input type="checkbox" id="optFreeCam"> Free view — drag to turn the board, scroll to zoom (off: the board stays where it is; also the 🔒 button or V)</label>
     <div class="row">

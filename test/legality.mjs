@@ -162,6 +162,18 @@ const ROLLS = [];
 for (let a = 1; a <= 6; a++) for (let b = a; b <= 6; b++) ROLLS.push([a, b]);
 const cloneT = (T) => ({ ...T, dice: T.dice.slice(), v: { mine: Int8Array.from(T.v.mine), opp: Int8Array.from(T.v.opp), myOff: T.v.myOff, oppOff: T.v.oppOff }, rem: T.rem.slice(), played: T.played.slice() });
 
+// A step list (an enumerated play or the computer's chosen one) must also be accepted by the
+// interactive API, step by step, and complete the turn - matching only the final position
+// misses a list that uses the wrong die (2026-10-09: bearing off the last checker with the
+// smaller die; turnPlay threw and the game froze).
+function replays(g, p, dice, steps) {
+  try {
+    const T = createTurn(g, p, dice);
+    for (const s of steps) turnPlay(T, s);
+    return turnDone(T);
+  } catch { return false; }
+}
+
 let checked = 0;
 function compare(st, p, dice, label) {
   checked++;
@@ -185,6 +197,7 @@ function compare(st, p, dice, label) {
         s = applyRef(s, p, i, j);
       }
       if (!ok(good && keyRef(s, p) === keyEng(f.mine, f.myOff), `finalPositions step list not a legal path: ${tag} ${JSON.stringify(f.steps)}`)) break;
+      if (!ok(replays(g, p, dice, f.steps), `finalPositions step list refused by turnPlay: ${tag} ${JSON.stringify(f.steps)}`)) break;
     }
   }
   // 2./3. interactive turn
@@ -512,6 +525,7 @@ for (let gi = 0; gi < games; gi++) {
     let s = st;
     for (const step of steps) s = applyRef(s, p, 24 - step.r, step.t ? 24 - step.t : 24);
     ok(ref.max === 0 ? steps.length === 0 : ref.keys.has(keyRef(s, p)), `computer play illegal: game${gi} turn${turn} ${dice} ${JSON.stringify(steps)}`);
+    ok(replays(g, p, dice, steps), `computer play refused by turnPlay: game${gi} turn${turn} ${dice} ${JSON.stringify(steps)}`);
     for (const step of steps) { g.pos[p][step.r]--; if (step.t) g.pos[p][step.t]++; else g.off[p]++; }
     p = 1 - p;
   }

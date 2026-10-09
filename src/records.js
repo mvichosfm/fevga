@@ -53,6 +53,7 @@ export const stepsText = (steps) => (steps.length ? steps.map((s) => `${shown(s.
 
 export function resultText(rec) {
   if (!rec.result) return 'unfinished';
+  if (rec.result.resigned && rec.result.winner === 'you') return `computer conceded, ${rec.imported ? 'player' : 'you'} +${rec.result.points}`;
   if (rec.result.resigned) return `${rec.imported ? 'player' : 'you'} admitted the loss, computer +${rec.result.points}`;
   const pts = `+${rec.result.points}${rec.result.points === 2 ? ' (mars)' : ''}`;
   // an imported game's "you" is whoever played it, not the person reviewing it
@@ -73,7 +74,7 @@ export function toVbg(rec) {
     exportedAt: new Date().toISOString(),
     // resigned: the player conceded; resignPoints = 1 (single) or 2 (double). Both optional and
     // v1-compatible: a file with resigned but no resignPoints (older exports) is a double.
-    game: { name, date, level, human, opening, openingPlay: !!openingPlay, turns, ...(match ? { match } : {}), ...(resigned ? { resigned: true, resignPoints: rec.result?.points === 1 ? 1 : 2 } : {}) },
+    game: { name, date, level, human, opening, openingPlay: !!openingPlay, turns, ...(match ? { match } : {}), ...(resigned ? { resigned: true, resignPoints: rec.result?.points === 1 ? 1 : 2, ...(rec.result?.winner === 'you' ? { resignedBy: 'cpu' } : {}) } : {}) },
   }, null, 1);
 }
 
@@ -115,6 +116,7 @@ export function parseVbg(text) {
   }
   const w = winner(pos);
   // a concession is the only result not visible on the board; it only counts while the game was still open
+  // (resignedBy 'cpu' = the computer was made to concede, so the player won; absent = the player admitted the loss)
   const resigned = !w && g.resigned === true;
   const resignPoints = g.resignPoints === 1 ? 1 : 2;
   return {
@@ -123,14 +125,14 @@ export function parseVbg(text) {
       date: Number.isFinite(g.date) ? g.date : Date.now(),
       level, human, opening, openingPlay: !!g.openingPlay, turns, imported: true,
       ...(resigned ? { resigned: true } : {}),
-      result: w ? { winner: w.p === human ? 'you' : 'cpu', points: w.points } : resigned ? { winner: 'cpu', points: resignPoints, resigned: true } : null,
+      result: w ? { winner: w.p === human ? 'you' : 'cpu', points: w.points } : resigned ? { winner: g.resignedBy === 'cpu' ? 'you' : 'cpu', points: resignPoints, resigned: true } : null,
     },
   };
 }
 
 // ---------------------------------------------------------------- .vbs settings files
 // UTF-8 JSON: { format: "fevga-vbs", version: 1, app, exportedAt, setup, favourites: [{ name, s }] }
-// where setup / s = { level, color, light, lamp, freeCam, view, theme, numbers, trails, round, total, muted, autoEnd,
+// where setup / s = { level, color, light, lamp, freeCam, view, theme, numbers, trails, round, total, odds, muted, autoEnd,
 // openingPlay, match }. (.vbs was Manos's choice; it is also the Windows VBScript extension, so
 // mail filters may block it - the content is plain JSON and never executed by the game.)
 // Imports are untrusted: every field is type-checked and clamped; unknown fields are dropped.
@@ -155,7 +157,7 @@ export function cleanSetup(s) {
     light: Number.isFinite(s.light) ? Math.min(1.6, Math.max(0.25, s.light)) : 1,
     lamp: b(s.lamp), freeCam: b(s.freeCam), view: b(s.freeCam) ? null : view,
     theme: typeof s.theme === 'string' ? s.theme.slice(0, 40) : 'walnut',
-    numbers: s.numbers !== false, trails: s.trails !== false, round: b(s.round), total: b(s.total), muted: b(s.muted), autoEnd: b(s.autoEnd), openingPlay: b(s.openingPlay), match: b(s.match),
+    numbers: s.numbers !== false, trails: s.trails !== false, round: b(s.round), total: b(s.total), odds: b(s.odds), muted: b(s.muted), autoEnd: b(s.autoEnd), openingPlay: b(s.openingPlay), match: b(s.match),
   };
 }
 

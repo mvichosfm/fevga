@@ -38,6 +38,10 @@ No accounts, no ads, no tracking, no network calls: the game is a static page an
   the move controls on the right, and everything else in a drawer; Hint, Mr. Makis, Admit loss and Slam
   sit behind a **⋯** button. Drag a checker to move it.
 - **Hint**, **Undo**, an optional **opening throw**, **match to 5**, and **auto-end turn**.
+- **Winning chances** (optional, in Settings): a bar in the scoreboard with each side's chance to win and
+  to win double, from 300 play-outs of the board at the start of each turn.
+- **Computer quits**: end the game on the computer's behalf as a single or double win for you (double only
+  while the computer has nothing off), the mirror of *Admit loss*.
 - **Game records:** the last five games are kept automatically, up to ten named saves, move-by-move
   **replay**, **Continue from here** to play on from any position of a recorded game, and `.vbg` files to
   share a game (every move of an imported file is re-checked by the rules engine).
@@ -66,7 +70,8 @@ No accounts, no ads, no tracking, no network calls: the game is a static page an
 `src/engine.js` is the authority: its header lists the rules, and `test/rules.mjs` checks them.
 `test/legality.mjs` re-implements the rules independently (absolute board, brute force over every die
 order) and checks, for every roll in thousands of positions, that the moves the game offers are exactly
-the legal ones: nothing legal missing, nothing illegal allowed.
+the legal ones: nothing legal missing, nothing illegal allowed. Every play the computer chooses from, and
+every play it actually makes, is also replayed click by click through the same turn API the board uses.
 
 ## Run it locally
 
@@ -83,7 +88,7 @@ Any static server works too, e.g. `python -m http.server 8831`.
 
 ```bash
 node test/rules.mjs                         # rules engine, random full games, file formats (instant)
-node test/legality.mjs                      # every legal play vs an independent brute-force rules implementation (~1 min)
+node test/legality.mjs                      # every legal play vs an independent brute-force rules implementation (~4 min)
 node test/lessons.mjs                       # the guided lessons vs the engine (instant)
 node test/strategy-check.mjs                # the strategy guide's claims vs the engine (instant)
 node test/selfplay.mjs 200 1-2 2-3 3-4 4-5  # each level against the one below

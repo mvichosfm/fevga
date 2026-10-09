@@ -175,6 +175,22 @@ ok(absOf(0, 24) === 23 && absOf(1, 24) === 11 && absOf(1, 13) === 0 && absOf(1, 
   ok(fmt(turnSteps(T)) === '13>8/5', `must play the larger die: ${fmt(turnSteps(T))}`);
   const f = finalPositions(viewOf(g, 0), [2, 5]);
   ok(f.length === 1 && f[0].steps[0].d === 5, 'enumeration agrees on the larger die');
+  // Both dice reach the same position (the last checker bears off with either): the
+  // enumeration must still carry the larger die, or the computer's play is refused by
+  // turnPlay and the game freezes (found 2026-10-09 via the plakoto port).
+  const g2 = game({ 1: 1 }, { 24: 15 }, 14);
+  for (const dice of [[3, 5], [5, 3]]) {
+    const T2 = createTurn(g2, 0, dice);
+    ok(T2.M === 1 && fmt(turnSteps(T2)) === '1>0/5', `last checker off ${dice}: only the 5 offered: ${fmt(turnSteps(T2))}`);
+    const f2 = finalPositions(viewOf(g2, 0), expandDice(dice));
+    ok(f2.length === 1 && fmt(f2[0].steps) === '1>0/5', `last checker off ${dice}: enumeration uses the 5: ${f2.length && fmt(f2[0].steps)}`);
+    for (let lv = 1; lv <= 5; lv++) {
+      const play = chooseMove(g2, 0, dice, lv);
+      let replayed = true;
+      try { const t = createTurn(g2, 0, dice); for (const s of play) turnPlay(t, s); replayed = turnDone(t); } catch { replayed = false; }
+      ok(replayed && fmt(play) === '1>0/5', `last checker off ${dice}: level ${lv} play ${fmt(play)} replays through turnPlay`);
+    }
+  }
 }
 
 // 7. No legal move at all.
@@ -341,10 +357,32 @@ ok(absOf(0, 24) === 23 && absOf(1, 24) === 11 && absOf(1, 13) === 0 && absOf(1, 
   ok(PUZZLES.length >= 12 && !bad.length, `${PUZZLES.length} puzzles valid${bad.length ? ': ' + bad.slice(0, 4).join('; ') : ''}`);
 }
 
+// 11d. Winning chances (Settings > Show winning chances) and the computer conceding (.vbg round-trip)
+{
+  const { winChances } = await import('../src/engine.js');
+  const { toVbg, parseVbg, resultText } = await import('../src/records.js');
+  const start = winChances(newGame(), 0, { rollouts: 120, seed: 3 });
+  ok(start.white > 0.35 && start.white < 0.65, `opening position is close to even (${Math.round(start.white * 100)}% white)`);
+  // a lopsided board: white has borne off 14 checkers and has one on its last point, black has not moved
+  const g1 = newGame(); g1.pos[0].fill(0); g1.pos[0][1] = 1; g1.off[0] = 14;
+  const lop = winChances(g1, 0, { rollouts: 60, seed: 3 });
+  ok(lop.white === 1 && lop.blackMars === 0, 'a board one move from bearing off the last checker is a certain win');
+  const g2 = cloneGame(g1); g2.off[0] = 15; g2.pos[0][1] = 0;
+  ok(winChances(g2, 1).white === 1 && winChances(g2, 1).rollouts === 0, 'a finished game reports its result without play-outs');
+  // the computer conceded: stored as resigned with the human winning; the .vbg keeps who conceded
+  const rec = { name: 't', date: 1, level: 3, human: 0, opening: null, turns: [], resigned: true, result: { winner: 'you', points: 2, resigned: true } };
+  const back = parseVbg(toVbg(rec)).rec;
+  ok(back.result.winner === 'you' && back.result.points === 2 && back.result.resigned, 'computer-conceded game round-trips through .vbg');
+  const rec2 = { ...rec, result: { winner: 'cpu', points: 1, resigned: true } };
+  const back2 = parseVbg(toVbg(rec2)).rec;
+  ok(back2.result.winner === 'cpu' && back2.result.points === 1, 'player-admitted game still round-trips');
+  ok(resultText(rec).startsWith('computer conceded'), 'result text names the computer\'s concession');
+}
+
 // 11b. .vbs settings files: round-trip, clamping of hostile values, refusal of other files
 {
   const { toVbs, parseVbs } = await import('../src/records.js');
-  const setup = { level: 4, color: 1, light: 0.6, lamp: true, freeCam: false, view: [40, 60, 100], theme: 'olive', numbers: false, trails: false, round: true, total: true, muted: true, autoEnd: true, openingPlay: true, match: true };
+  const setup = { level: 4, color: 1, light: 0.6, lamp: true, freeCam: false, view: [40, 60, 100], theme: 'olive', numbers: false, trails: false, round: true, total: true, odds: true, muted: true, autoEnd: true, openingPlay: true, match: true };
   const back = parseVbs(toVbs(setup, [{ name: 'Night', s: setup }]));
   ok(JSON.stringify(back.setup) === JSON.stringify(setup) && back.favourites.length === 1 && back.favourites[0].name === 'Night', '.vbs round-trips');
   const evil = parseVbs(JSON.stringify({ format: 'fevga-vbs', version: 1, setup: { level: 99, color: 'x', light: 1e9, view: [1e9, 0, 0], theme: { a: 1 }, lamp: 'yes', extra: '<script>' }, favourites: [{ name: 42, s: null }, 'junk'] }));
