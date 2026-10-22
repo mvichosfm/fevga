@@ -67,17 +67,17 @@ ok(diceUsed([2, 2]) === 4 && diceUsed([5, 5]) === 4, '2-2 and 5-5 play all four'
 ok(shown(OPEN['5-5'][1]) === 16, '5-5: 1 -> 6 -> 11 -> 16');
 const at = (n) => Object.entries(OPEN).filter(([, v]) => shown(v[1]) === n).map(([, v]) => v[0]);
 const range = (ws) => `${Math.round(Math.min(...ws))}-${Math.round(Math.max(...ws))}`;
-ok(range([...at(11), ...at(12)]) === '59-62', `reaching 11-12 wins about 60%, 59-62% (got ${range([...at(11), ...at(12)])})`);
+ok(range([...at(11), ...at(12)]) === '58-61', `reaching 11-12 wins about 60%, 58-61% (got ${range([...at(11), ...at(12)])})`);
 ok(range([...at(4), ...at(5), ...at(6)]) === '50-53', `stopping on 4-6 is barely better than a coin toss, 50-53% (got ${range([...at(4), ...at(5), ...at(6)])})`);
 
 // Expert occupancy: HEAT[r], claims quoted in the text in shown numbering
 const HEAT = JSON.parse(html.match(/const HEAT = (\[[^\]]*\]);/)[1]);
 const heat = (n) => HEAT[25 - n];
-ok(heat(4) === 64 && heat(5) === 65 && heat(3) === 58 && heat(7) === 54 && heat(2) === 52, 'heaviest building 4-5 (64-65), 3 (58), 7 (54), 2 (52)');
-ok(Math.max(...HEAT.filter((_, r) => r >= 1 && r <= 23 && ![20, 21, 22, 23, 18].includes(r))) < 52, 'no other point (bar the start) is held as often as those five');
+ok(heat(4) === 64 && heat(5) === 65 && heat(3) === 58 && heat(7) === 54 && heat(2) === 51, 'heaviest building 4-5 (64-65), 3 (58), 7 (54), 2 (51)');
+ok(Math.max(...HEAT.filter((_, r) => r >= 1 && r <= 23 && ![20, 21, 22, 23, 18].includes(r))) < 51, 'no other point (bar the start) is held as often as those five');
 ok(heat(24) === 47, 'point 24 held 47%');
 ok(heat(1) === 99 && heat(13) === 0, 'start stack 1, computer start 13 never held');
-ok([10, 11, 12].map(heat).sort((a, b) => a - b).join() === '11,13,23', "computer's deep home 10-12 held 11-23%");
+ok([10, 11, 12].map(heat).sort((a, b) => a - b).join() === '11,13,24', "computer's deep home 10-12 held 11-24%");
 // six in a row is legal again: the wall table runs to 10+
 ok(/const WALL = \[\['≤ 3'[^\n]*\['10\+', [\d.]+, \d+\]\];/.test(html), 'wall table runs to 10+');
 

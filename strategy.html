@@ -120,11 +120,11 @@ of games against each other, and every figure is quoted with the sample it came 
   <p class="kicker">In one minute</p>
   <h2>Five rules of thumb</h2>
   <ol class="thumbs">
-    <li><div><b>Get your runner past point 13 first.</b> The side whose runner escapes first wins <span class="num">58%</span> of games.</div></li>
+    <li><div><b>Get your runner past point 13 first.</b> The side whose runner escapes first wins <span class="num">57%</span> of games.</div></li>
     <li><div><b>Build a wall of points in a row in front of the computer's checkers.</b> How long your wall gets predicts the result better than anything else we measured.</div></li>
     <li><div><b>Build it on the far side, on your points 2–8</b>: 2–6 are the last stretch before the computer's home, and 7–8 are its top two home points.
       After ten turns the computer usually still has 12–14 checkers that must cross the whole stretch.</div></li>
-    <li><div><b>Never leave a big stack stuck behind its wall.</b> After ten turns, players with 8 or more checkers still on the start point won only <span class="num">36%</span> of the time.</div></li>
+    <li><div><b>Never leave a big stack stuck behind its wall.</b> After ten turns, players with 8 or more checkers still on the start point won only <span class="num">39%</span> of the time.</div></li>
     <li><div><b>Count on mars.</b> Around half of all games end with the loser not having borne off a single checker. If you are behind, get one checker off. If you are ahead, keep the computer locked in.</div></li>
   </ol>
 </section>
@@ -155,8 +155,8 @@ of games against each other, and every figure is quoted with the sample it came 
   <p>Until one of your checkers has passed the computer's start (your point 13), you may move <b>only that one checker</b>. It has to reach
   point 14 or higher, which means travelling 13 pips without ever landing on 13. Your other 14 checkers wait on 1 until it gets there.</p>
   <div class="facts">
-    <div class="fact"><div class="big">58%</div><div class="lbl">win rate for the side whose runner escapes first (58.7% at Advanced, 57.7% at Expert)</div></div>
-    <div class="fact"><div class="big">54%</div><div class="lbl">win rate for the side that moves first (55.9% at Advanced, 53.0% at Expert)</div></div>
+    <div class="fact"><div class="big">57%</div><div class="lbl">win rate for the side whose runner escapes first (57.1% at Advanced, 57.0% at Expert)</div></div>
+    <div class="fact"><div class="big">53%</div><div class="lbl">win rate for the side that moves first (54.2% at Advanced, 51.7% at Expert)</div></div>
     <div class="fact"><div class="big">5-5</div><div class="lbl">the only opening roll that frees the runner at once: 1 → 6 → 11 → 16</div></div>
   </div>
   <h3>Opening rolls, first mover's win rate</h3>
@@ -182,26 +182,26 @@ of games against each other, and every figure is quoted with the sample it came 
   cannot move at all.</p>
   <h3>Longest wall reached in the game → win rate</h3>
   <div class="bars" data-fig="wallBars"></div>
-  <p class="cap">Advanced against Advanced, 3,000 games (6,000 sides). Expert games show the same curve: 47% at 6, 68% at 8.</p>
-  <p>The jump from <span class="num">11%</span> at five to <span class="num">45%</span> at six to <span class="num">73%</span> at eight is the whole game in one
-  picture. In this match-up a side that never got past four points in a row won less than <span class="num">1%</span>.</p>
+  <p class="cap">Advanced against Advanced, 3,000 games (6,000 sides). Expert games show the same curve: 45% at 6, 64% at 8.</p>
+  <p>The jump from <span class="num">13%</span> at five to <span class="num">47%</span> at six to <span class="num">69%</span> at eight is the whole game in one
+  picture. In this match-up a side that never got past four points in a row won about <span class="num">1%</span>.</p>
 
   <h3>Where the Expert builds</h3>
   <p>The share of Expert games in which it held each point after its tenth turn (300 games, both sides):</p>
   <div class="fig" data-fig="heatMap"></div>
   <p class="cap">The darker the gold, the more often the Expert held that point. 1 is the start stack. 13 is never held this early because the computer's start stack is still there.</p>
   <ul>
-    <li>The heaviest building is on <b>4–5 (64–65%)</b>, <b>3 (58%)</b>, <b>7 (54%)</b> and <b>2 (52%)</b>. That is a fence across the last stretch
+    <li>The heaviest building is on <b>4–5 (64–65%)</b>, <b>3 (58%)</b>, <b>7 (54%)</b> and <b>2 (51%)</b>. That is a fence across the last stretch
       before the computer's home and its top two home points, which most of its checkers still have to cross.</li>
     <li><b>7–8</b> extend the fence past the start quarter. You may not hold all six of 1–6, so while checkers still stand on 1, the wall grows onwards into 7 and 8 instead.</li>
     <li>Point <b>24 (47%)</b> is held surprisingly often. A checker parked at the end of your home still blocks: it is the computer's
       point 12, a landing spot its checkers need early on their way round.</li>
-    <li>The deep points of the computer's home (10–12, held 11–23%) are mostly <b>left alone</b> early. Holding more of 7–12 after ten turns did not predict wins:
-      0 to 4 points there won between 48% and 54%.</li>
+    <li>The deep points of the computer's home (10–12, held 11–24%) are mostly <b>left alone</b> early. Holding more of 7–12 after ten turns did not predict wins:
+      0 to 4 points there won between 49% and 53%.</li>
   </ul>
 
   <div class="callout"><b>Six in a row is allowed.</b> You may hold six or more points in a row anywhere except your own starting quarter
-  (all six of 1–6). There is one limit: if every computer checker on the board ends up on the single point right behind your six, your next
+  (all six of 1–6) and the six points right in front of the computer's starting point (14–19) while it still has checkers there. There is one more limit: if every computer checker on the board ends up on the single point right behind your six, your next
   move must open one of those points so it can move again. In 3,000 test games that never happened, so in practice your wall can keep growing.</div>
 </section>
 
@@ -211,9 +211,9 @@ of games against each other, and every figure is quoted with the sample it came 
   <p>The computer is building a wall against you too, on your 14–20 (its 2–8). The worst position in Fevga is a <b>tall stack sitting
   behind that wall</b>: each turn it cannot move, all your other checkers have to spend the dice instead, and your structure falls apart.</p>
   <div class="facts">
-    <div class="fact"><div class="big">36%</div><div class="lbl">wins with 8 or more checkers still on the start after ten turns (2,173 cases)</div></div>
-    <div class="fact"><div class="big">61%</div><div class="lbl">wins with 4–7 still on the start (2,593 cases)</div></div>
-    <div class="fact"><div class="big">51%</div><div class="lbl">wins with 0–3 still on the start (1,234 cases)</div></div>
+    <div class="fact"><div class="big">39%</div><div class="lbl">wins with 8 or more checkers still on the start after ten turns (2,172 cases)</div></div>
+    <div class="fact"><div class="big">59%</div><div class="lbl">wins with 4–7 still on the start (2,597 cases)</div></div>
+    <div class="fact"><div class="big">49%</div><div class="lbl">wins with 0–3 still on the start (1,231 cases)</div></div>
   </div>
   <p class="cap">Advanced against Advanced, 3,000 games. These are correlations, not proof, but the pattern makes sense: bring checkers out
   steadily, and keep a few back as spare moves for turns when everything else is blocked.</p>
@@ -230,7 +230,7 @@ of games against each other, and every figure is quoted with the sample it came 
   <p class="kicker">Phase 3 · the end</p>
   <h2>Race, bear-off and mars</h2>
   <div class="facts">
-    <div class="fact"><div class="big">45%</div><div class="lbl">of Expert-vs-Expert games end in mars (60% at Advanced)</div></div>
+    <div class="fact"><div class="big">41%</div><div class="lbl">of Expert-vs-Expert games end in mars (53% at Advanced)</div></div>
     <div class="fact"><div class="big">≈100</div><div class="lbl">turns in a typical game, about 50 rolls each</div></div>
   </div>
   <ul>
@@ -251,18 +251,19 @@ of games against each other, and every figure is quoted with the sample it came 
       computer checkers are still behind it. He also shows the next two candidates with estimated win rates from 120 play-outs each.
       Against the Expert he won 23 games to 17. Keep his move, or take it back and play your own.</li>
     <li><b>Games → Replay</b> your last five games move by move and ask yourself where your wall stopped growing, or when your stack got stuck.</li>
-    <li><b>Climb the levels.</b> Each level beat the one below it in testing: Novice 77%, Intermediate 82%, Advanced 64%, Expert 60%.
+    <li><b>Climb the levels.</b> Each level beat the one below it in testing: Novice 75%, Intermediate 83%, Advanced 62%, Expert 61%.
       Once you regularly beat Advanced, the Expert is a fair test.</li>
   </ul>
 </section>
 
 <footer id="method">
   <h3>How this was measured</h3>
-  <p>All figures come from the game's own engine (<code>src/engine.js</code>) playing against itself on 2 October 2026, with fixed random seeds:
+  <p>All figures come from the game's own engine (<code>src/engine.js</code>) playing against itself with fixed random seeds (first on 2 October 2026, re-run on 22 October 2026 for the rule against six in front of the opponent's start):
   3,000 Advanced-vs-Advanced games (wall length, start-point stack, first move, mars), 300 Expert-vs-Expert games (point occupancy, checkers
   still to cross 2–8, and the Expert checks on the other figures), and 1,500 Advanced games for each of the 21 opening rolls. "Runner escapes first" means the first side with a
   checker on its point 14 or higher. "Wall" means the longest run of a side's points in a row with an opposing checker still behind it.
-  These are computer-vs-computer statistics: they show what wins between strong players, not a solved game.</p>
+  These are computer-vs-computer statistics: they show what wins between strong players, not a solved game.
+  Mr. Makis's match against the Expert was played on 2 October 2026, before that rule.</p>
 </footer>
 </div>
 
@@ -282,11 +283,11 @@ of games against each other, and every figure is quoted with the sample it came 
   <p class="kicker">Σε ένα λεπτό</p>
   <h2>Πέντε βασικοί κανόνες</h2>
   <ol class="thumbs">
-    <li><div><b>Βγάλε πρώτος τον δρομέα σου πέρα από τη θέση 13.</b> Η πλευρά της οποίας ο δρομέας ξεφεύγει πρώτος κερδίζει το <span class="num">58%</span> των παρτίδων.</div></li>
+    <li><div><b>Βγάλε πρώτος τον δρομέα σου πέρα από τη θέση 13.</b> Η πλευρά της οποίας ο δρομέας ξεφεύγει πρώτος κερδίζει το <span class="num">57%</span> των παρτίδων.</div></li>
     <li><div><b>Χτίσε ένα τείχος από συνεχόμενες θέσεις μπροστά από τα πούλια του υπολογιστή.</b> Το πόσο μακρύ γίνεται το τείχος σου προβλέπει το αποτέλεσμα καλύτερα από οτιδήποτε άλλο μετρήσαμε.</div></li>
     <li><div><b>Χτίσ' το στην απέναντι πλευρά, στις θέσεις σου 2–8</b>: οι 2–6 είναι το τελευταίο κομμάτι πριν από το σπίτι του υπολογιστή και οι 7–8 οι δύο εξωτερικές θέσεις του σπιτιού του.
       Μετά από δέκα γύρους, ο υπολογιστής έχει συνήθως ακόμη 12–14 πούλια που πρέπει να διασχίσουν ολόκληρο αυτό το κομμάτι.</div></li>
-    <li><div><b>Μην αφήνεις ποτέ μια μεγάλη στοίβα κολλημένη πίσω από το τείχος του.</b> Μετά από δέκα γύρους, όσοι είχαν ακόμη 8 ή περισσότερα πούλια στην αφετηρία κέρδισαν μόνο το <span class="num">36%</span> των φορών.</div></li>
+    <li><div><b>Μην αφήνεις ποτέ μια μεγάλη στοίβα κολλημένη πίσω από το τείχος του.</b> Μετά από δέκα γύρους, όσοι είχαν ακόμη 8 ή περισσότερα πούλια στην αφετηρία κέρδισαν μόνο το <span class="num">39%</span> των φορών.</div></li>
     <li><div><b>Υπολόγιζε το μαρς.</b> Περίπου οι μισές παρτίδες τελειώνουν χωρίς ο χαμένος να έχει μαζέψει ούτε ένα πούλι. Αν είσαι πίσω, μάζεψε ένα πούλι. Αν είσαι μπροστά, κράτα τον υπολογιστή κλειδωμένο.</div></li>
   </ol>
 </section>
@@ -318,8 +319,8 @@ of games against each other, and every figure is quoted with the sample it came 
   <p>Μέχρι να περάσει ένα πούλι σου την αφετηρία του υπολογιστή (τη θέση σου 13), μπορείς να κινείς <b>μόνο αυτό το ένα πούλι</b>. Πρέπει να
   φτάσει στη θέση 14 ή πιο πέρα, δηλαδή να διανύσει 13 βήματα χωρίς να σταματήσει ποτέ στο 13. Τα άλλα 14 πούλια σου περιμένουν στο 1 ώσπου να τα καταφέρει.</p>
   <div class="facts">
-    <div class="fact"><div class="big">58%</div><div class="lbl">ποσοστό νίκης για την πλευρά της οποίας ο δρομέας ξεφεύγει πρώτος (58,7% στο Advanced, 57,7% στο Expert)</div></div>
-    <div class="fact"><div class="big">54%</div><div class="lbl">ποσοστό νίκης για όποιον παίζει πρώτος (55,9% στο Advanced, 53,0% στο Expert)</div></div>
+    <div class="fact"><div class="big">57%</div><div class="lbl">ποσοστό νίκης για την πλευρά της οποίας ο δρομέας ξεφεύγει πρώτος (57,1% στο Advanced, 57,0% στο Expert)</div></div>
+    <div class="fact"><div class="big">53%</div><div class="lbl">ποσοστό νίκης για όποιον παίζει πρώτος (54,2% στο Advanced, 51,7% στο Expert)</div></div>
     <div class="fact"><div class="big">5-5</div><div class="lbl">η μόνη πρώτη ζαριά που ελευθερώνει αμέσως τον δρομέα: 1 → 6 → 11 → 16</div></div>
   </div>
   <h3>Πρώτη ζαριά: ποσοστό νίκης όποιου παίζει πρώτος</h3>
@@ -346,9 +347,9 @@ of games against each other, and every figure is quoted with the sample it came 
   κλειστές θέσεις δεν μπορεί να κινηθεί καθόλου.</p>
   <h3>Μακρύτερο τείχος της παρτίδας → ποσοστό νίκης</h3>
   <div class="bars" data-fig="wallBars"></div>
-  <p class="cap">Advanced εναντίον Advanced, 3.000 παρτίδες (6.000 πλευρές). Οι παρτίδες του Expert δίνουν την ίδια καμπύλη: 47% στις 6, 68% στις 8.</p>
-  <p>Το άλμα από <span class="num">11%</span> στις πέντε σε <span class="num">45%</span> στις έξι και <span class="num">73%</span> στις οκτώ είναι
-  όλη η παρτίδα σε μία εικόνα. Σε αυτή την αναμέτρηση, μια πλευρά που δεν ξεπέρασε ποτέ τις τέσσερις συνεχόμενες θέσεις κέρδισε λιγότερο από <span class="num">1%</span>.</p>
+  <p class="cap">Advanced εναντίον Advanced, 3.000 παρτίδες (6.000 πλευρές). Οι παρτίδες του Expert δίνουν την ίδια καμπύλη: 45% στις 6, 64% στις 8.</p>
+  <p>Το άλμα από <span class="num">13%</span> στις πέντε σε <span class="num">47%</span> στις έξι και <span class="num">69%</span> στις οκτώ είναι
+  όλη η παρτίδα σε μία εικόνα. Σε αυτή την αναμέτρηση, μια πλευρά που δεν ξεπέρασε ποτέ τις τέσσερις συνεχόμενες θέσεις κέρδισε περίπου <span class="num">1%</span>.</p>
 
   <h3>Πού χτίζει ο Expert</h3>
   <p>Το ποσοστό των παρτίδων όπου ο Expert κρατούσε κάθε θέση μετά τον δέκατο γύρο του (300 παρτίδες, και οι δύο πλευρές):</p>
@@ -356,18 +357,18 @@ of games against each other, and every figure is quoted with the sample it came 
   <p class="cap">Όσο πιο έντονο το χρυσό, τόσο πιο συχνά κρατούσε ο Expert εκείνη τη θέση. Το 1 είναι η στοίβα της αφετηρίας. Το 13 δεν
   κρατιέται ποτέ τόσο νωρίς, γιατί εκεί βρίσκεται ακόμη η στοίβα της αφετηρίας του υπολογιστή.</p>
   <ul>
-    <li>Το περισσότερο χτίσιμο γίνεται στις <b>4–5 (64–65%)</b>, <b>3 (58%)</b>, <b>7 (54%)</b> και <b>2 (52%)</b>. Είναι ένας φράχτης κατά
+    <li>Το περισσότερο χτίσιμο γίνεται στις <b>4–5 (64–65%)</b>, <b>3 (58%)</b>, <b>7 (54%)</b> και <b>2 (51%)</b>. Είναι ένας φράχτης κατά
       μήκος του τελευταίου κομματιού πριν από το σπίτι του υπολογιστή και των δύο εξωτερικών θέσεων του σπιτιού του, που τα περισσότερα πούλια του πρέπει ακόμη να περάσουν.</li>
     <li>Οι <b>7–8</b> προεκτείνουν τον φράχτη έξω από το τεταρτημόριο της αφετηρίας. Αφού δεν επιτρέπεται να κρατάς και τις έξι θέσεις 1–6,
       όσο υπάρχουν ακόμη πούλια στο 1 το τείχος μεγαλώνει προς τα εμπρός, στο 7 και στο 8.</li>
     <li>Η θέση <b>24 (47%)</b> κρατιέται εκπληκτικά συχνά. Ένα πούλι παρκαρισμένο στο βάθος του σπιτιού σου εξακολουθεί να μπλοκάρει: είναι η
       θέση 12 του υπολογιστή, μια στάση που τα πούλια του χρειάζονται νωρίς στον δρόμο τους.</li>
-    <li>Οι βαθιές θέσεις του σπιτιού του υπολογιστή (10–12, κρατημένες 11–23%) συνήθως <b>μένουν ελεύθερες</b> νωρίς. Το να κρατάς περισσότερες
-      από τις 7–12 μετά από δέκα γύρους δεν προέβλεπε νίκες: με 0 έως 4 θέσεις εκεί, τα ποσοστά νίκης ήταν από 48% έως 54%.</li>
+    <li>Οι βαθιές θέσεις του σπιτιού του υπολογιστή (10–12, κρατημένες 11–24%) συνήθως <b>μένουν ελεύθερες</b> νωρίς. Το να κρατάς περισσότερες
+      από τις 7–12 μετά από δέκα γύρους δεν προέβλεπε νίκες: με 0 έως 4 θέσεις εκεί, τα ποσοστά νίκης ήταν από 49% έως 53%.</li>
   </ul>
 
   <div class="callout"><b>Έξι στη σειρά επιτρέπονται.</b> Μπορείς να κρατάς έξι ή περισσότερες συνεχόμενες θέσεις οπουδήποτε, εκτός από το
-  τεταρτημόριο της αφετηρίας σου (και τις έξι θέσεις 1–6). Υπάρχει ένα όριο: αν όλα τα πούλια του υπολογιστή στο ταμπλό βρεθούν στη μία θέση
+  τεταρτημόριο της αφετηρίας σου (και τις έξι θέσεις 1–6) και τις έξι θέσεις ακριβώς μπροστά από τη μάνα του υπολογιστή (14–19) όσο έχει ακόμη πούλια εκεί. Υπάρχει και ένα ακόμη όριο: αν όλα τα πούλια του υπολογιστή στο ταμπλό βρεθούν στη μία θέση
   ακριβώς πίσω από τις έξι σου, η επόμενη κίνησή σου πρέπει να ανοίξει μία από αυτές για να μπορέσει να κινηθεί ξανά. Σε 3.000 δοκιμαστικές
   παρτίδες αυτό δεν συνέβη ποτέ, οπότε στην πράξη το τείχος σου μπορεί να συνεχίσει να μεγαλώνει.</div>
 </section>
@@ -378,9 +379,9 @@ of games against each other, and every figure is quoted with the sample it came 
   <p>Ο υπολογιστής χτίζει κι αυτός τείχος εναντίον σου, στις θέσεις σου 14–20 (τις δικές του 2–8). Η χειρότερη κατάσταση στη φεύγα είναι μια
   <b>ψηλή στοίβα πίσω από αυτό το τείχος</b>: σε κάθε γύρο που δεν μπορεί να κινηθεί, τα υπόλοιπα πούλια σου αναγκάζονται να παίξουν τα ζάρια, και το στήσιμό σου διαλύεται.</p>
   <div class="facts">
-    <div class="fact"><div class="big">36%</div><div class="lbl">νίκες με 8 ή περισσότερα πούλια ακόμη στην αφετηρία μετά από δέκα γύρους (2.173 περιπτώσεις)</div></div>
-    <div class="fact"><div class="big">61%</div><div class="lbl">νίκες με 4–7 ακόμη στην αφετηρία (2.593 περιπτώσεις)</div></div>
-    <div class="fact"><div class="big">51%</div><div class="lbl">νίκες με 0–3 ακόμη στην αφετηρία (1.234 περιπτώσεις)</div></div>
+    <div class="fact"><div class="big">39%</div><div class="lbl">νίκες με 8 ή περισσότερα πούλια ακόμη στην αφετηρία μετά από δέκα γύρους (2.172 περιπτώσεις)</div></div>
+    <div class="fact"><div class="big">59%</div><div class="lbl">νίκες με 4–7 ακόμη στην αφετηρία (2.597 περιπτώσεις)</div></div>
+    <div class="fact"><div class="big">49%</div><div class="lbl">νίκες με 0–3 ακόμη στην αφετηρία (1.231 περιπτώσεις)</div></div>
   </div>
   <p class="cap">Advanced εναντίον Advanced, 3.000 παρτίδες. Είναι συσχετίσεις, όχι απόδειξη, αλλά το μοτίβο βγάζει νόημα: βγάζε πούλια σταθερά,
   και κράτα μερικά πίσω ως εφεδρικές κινήσεις για τους γύρους που όλα τα άλλα είναι μπλοκαρισμένα.</p>
@@ -398,7 +399,7 @@ of games against each other, and every figure is quoted with the sample it came 
   <p class="kicker">Φάση 3 · το τέλος</p>
   <h2>Κούρσα, μάζεμα και μαρς</h2>
   <div class="facts">
-    <div class="fact"><div class="big">45%</div><div class="lbl">των παρτίδων Expert εναντίον Expert τελειώνουν με μαρς (60% στο Advanced)</div></div>
+    <div class="fact"><div class="big">41%</div><div class="lbl">των παρτίδων Expert εναντίον Expert τελειώνουν με μαρς (53% στο Advanced)</div></div>
     <div class="fact"><div class="big">≈100</div><div class="lbl">γύροι σε μια τυπική παρτίδα, περίπου 50 ζαριές ο καθένας</div></div>
   </div>
   <ul>
@@ -420,19 +421,20 @@ of games against each other, and every figure is quoted with the sample it came 
       νέες θέσεις, το τείχος, πόσα πούλια του υπολογιστή είναι ακόμη πίσω του. Δείχνει επίσης τις δύο επόμενες επιλογές με εκτιμώμενα ποσοστά νίκης
       από 120 δοκιμαστικές παρτίδες η καθεμία. Απέναντι στον Expert κέρδισε 23 παρτίδες έναντι 17. Κράτα την κίνησή του ή πάρ' την πίσω και παίξε τη δική σου.</li>
     <li><b>Games → Replay</b>: ξαναδές τις πέντε τελευταίες παρτίδες σου κίνηση προς κίνηση και ρώτα τον εαυτό σου πού σταμάτησε να μεγαλώνει το τείχος σου ή πότε κόλλησε η στοίβα σου.</li>
-    <li><b>Ανέβαινε επίπεδα.</b> Στις δοκιμές κάθε επίπεδο νίκησε το προηγούμενο: Novice 77%, Intermediate 82%, Advanced 64%, Expert 60%.
+    <li><b>Ανέβαινε επίπεδα.</b> Στις δοκιμές κάθε επίπεδο νίκησε το προηγούμενο: Novice 75%, Intermediate 83%, Advanced 62%, Expert 61%.
       Όταν κερδίζεις τακτικά τον Advanced, ο Expert είναι ένα δίκαιο τεστ.</li>
   </ul>
 </section>
 
 <footer id="method-el">
   <h3>Πώς μετρήθηκαν</h3>
-  <p>Όλοι οι αριθμοί προέρχονται από τη μηχανή του ίδιου του παιχνιδιού (<code>src/engine.js</code>), που έπαιξε με τον εαυτό της στις
-  2 Οκτωβρίου 2026 με σταθερούς σπόρους τυχαιότητας: 3.000 παρτίδες Advanced εναντίον Advanced (μήκος τείχους, στοίβα αφετηρίας, πρώτη κίνηση, μαρς),
+  <p>Όλοι οι αριθμοί προέρχονται από τη μηχανή του ίδιου του παιχνιδιού (<code>src/engine.js</code>), που έπαιξε με τον εαυτό της με σταθερούς σπόρους τυχαιότητας
+  (πρώτα στις 2 Οκτωβρίου 2026, ξανά στις 22 Οκτωβρίου 2026 για τον κανόνα που απαγορεύει το εξάπορτο μπροστά από τη μάνα του αντιπάλου): 3.000 παρτίδες Advanced εναντίον Advanced (μήκος τείχους, στοίβα αφετηρίας, πρώτη κίνηση, μαρς),
   300 παρτίδες Expert εναντίον Expert (κατάληψη θέσεων, πούλια που πρέπει ακόμη να διασχίσουν το 2–8, και ο έλεγχος των υπόλοιπων αριθμών στο Expert)
   και 1.500 παρτίδες Advanced για καθεμία από τις 21 πρώτες ζαριές. «Ο δρομέας ξεφεύγει πρώτος» σημαίνει την πρώτη πλευρά με πούλι στη θέση της 14
   ή πιο πέρα. «Τείχος» σημαίνει τη μακρύτερη σειρά συνεχόμενων θέσεων μιας πλευράς με πούλι του αντιπάλου ακόμη πίσω της. Είναι στατιστικά
-  υπολογιστή εναντίον υπολογιστή: δείχνουν τι κερδίζει ανάμεσα σε δυνατούς παίκτες, δεν αποτελούν λύση του παιχνιδιού.</p>
+  υπολογιστή εναντίον υπολογιστή: δείχνουν τι κερδίζει ανάμεσα σε δυνατούς παίκτες, δεν αποτελούν λύση του παιχνιδιού.
+  Η αναμέτρηση του κυρίου Μάκη με τον Expert παίχτηκε στις 2 Οκτωβρίου 2026, πριν από αυτόν τον κανόνα.</p>
 </footer>
 </div>
 </div>
@@ -548,13 +550,13 @@ function board(host, lang, { heat, labels }) {
 }
 
 // Expert, own point held after its 10th turn (% of 600 sides, 300 games)
-const HEAT = [0, 47, 25, 16, 14, 14, 31, 26, 23, 22, 21, 20, 0, 11, 13, 23, 34, 50, 54, 47, 65, 64, 58, 52, 99];
+const HEAT = [0, 47, 25, 16, 14, 14, 31, 26, 23, 22, 21, 20, 0, 11, 13, 24, 34, 49, 54, 47, 65, 64, 58, 51, 99];
 
 // Opening rolls: first mover's win % (Advanced v Advanced, 1,500 games each); note = where the runner stops
-const OPEN = { '1-1': [49.9, 20], '1-2': [50.3, 21], '1-3': [53.3, 20], '1-4': [51.3, 19], '1-5': [53.3, 18], '1-6': [53.6, 17],
-  '2-2': [58.7, 16], '2-3': [52.9, 19], '2-4': [53.2, 18], '2-5': [52.9, 17], '2-6': [56.3, 16],
-  '3-3': [59.9, 15], '3-4': [55.5, 17], '3-5': [56.1, 16], '3-6': [57.3, 15],
-  '4-4': [56.3, 16], '4-5': [55.7, 15], '4-6': [58.9, 14], '5-5': [71.6, 9], '5-6': [62.3, 13], '6-6': [56.3, 18] };
+const OPEN = { '1-1': [50.7, 20], '1-2': [49.9, 21], '1-3': [52.5, 20], '1-4': [52.3, 19], '1-5': [51.8, 18], '1-6': [53.4, 17],
+  '2-2': [57.2, 16], '2-3': [52.4, 19], '2-4': [53.5, 18], '2-5': [51.3, 17], '2-6': [55.8, 16],
+  '3-3': [59.7, 15], '3-4': [53.9, 17], '3-5': [53.8, 16], '3-6': [54.7, 15],
+  '4-4': [56.4, 16], '4-5': [53.5, 15], '4-6': [58.0, 14], '5-5': [66.8, 9], '5-6': [60.5, 13], '6-6': [56.3, 18] };
 function rollGrid(host, lang) {
   const cell = (cls, html, style) => { const d = document.createElement('div'); d.className = cls; d.innerHTML = html; if (style) d.style.cssText = style; host.append(d); };
   cell('h', '');
@@ -571,7 +573,7 @@ function rollGrid(host, lang) {
 }
 
 // Longest wall reached -> win % (Advanced v Advanced, 3,000 games = 6,000 sides)
-const WALL = [['≤ 3', 0.4, 265], ['4', 1.1, 452], ['5', 11.2, 556], ['6', 44.7, 1663], ['7', 63.3, 1434], ['8', 72.9, 902], ['9', 79.5, 473], ['10+', 96.9, 255]];
+const WALL = [['≤ 3', 0.8, 121], ['4', 1.4, 366], ['5', 12.9, 551], ['6', 46.6, 1923], ['7', 59.7, 1513], ['8', 68.5, 895], ['9', 76.2, 467], ['10+', 94.5, 164]];
 function wallBars(host, lang) {
   for (const [k, v, n] of WALL) {
     host.insertAdjacentHTML('beforeend', `<span class="k">${T[lang].inRow(k)}</span><div class="track"><div class="fill" style="width:${Math.max(v, 1)}%"></div></div>` +

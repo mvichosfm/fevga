@@ -12,6 +12,7 @@ import { THEMES, themeById, SURFACES, SURFACE_SIZE, makeSurface } from './themes
 import { loadGames, storeGames, upsertRecent, saveNamed, renameSaved, deleteSaved, newId, stepsText, shown, resultText, fmtDate, MAX_SAVED, toVbg, parseVbg, vbgFileName, VBG_MAX_BYTES, toVbs, parseVbs, vbsFileName, VBS_MAX_BYTES } from './records.js';
 import { Sound } from './sound.js';
 import { createTrails, createConfetti } from './effects.js';
+import { FB_KEY, FB_SECTIONS, FB_KINDS, FB_MAX_COMMENT, sectionFor, makeRecord, loadFeedback, saveFeedback, cardOn, restartCard, addRecord, clearRecords, exportText, loadDraft, saveDraft } from './feedback.js';
 import { LESSONS, lessonBoard, lessonSteps } from './lessons.js';
 
 const $ = (id) => document.getElementById(id);
@@ -1074,7 +1075,8 @@ async function playPath(path) {
   const my = gid;
   busy = true; selected = -1; hintPath = null; clearMarks(); updateHud();
   for (const s of path) {
-    turnPlay(T, s);
+    // (a refused step - never expected - ends the path instead of leaving busy set forever)
+    try { turnPlay(T, s); } catch (e) { console.error('step refused', s, e); break; }
     updateHud();
     await moveChecker(HUMAN, s.from, s.to);
     if (my !== gid) return;
@@ -1147,8 +1149,15 @@ async function cpuTurn(preset = null) {
   } else {
     setStatus(`Computer plays ${diceLabel(curDice)}`);
     trails.clear(); // the previous turn's markers make way for this one's
-    for (const st of steps) {
-      const s = turnPlay(T, st);
+    // (defence in depth, as in plakoto: a planned step the turn refuses is replaced by a legal one
+    // rather than throwing with busy set, which would freeze the game; the turn is always played
+    // to the end)
+    const plan = steps.slice();
+    while (!turnDone(T)) {
+      let s = null;
+      const st = plan.shift();
+      if (st) { try { s = turnPlay(T, st); } catch (e) { console.error('computer step refused', st, e); } }
+      if (!s) { const alt = turnSteps(T)[0]; if (!alt) break; s = turnPlay(T, alt); }
       updateHud();
       const mv = await moveChecker(CPU, s.from, s.to);
       if (my !== gid) return;
@@ -1690,6 +1699,9 @@ function blockedReason(a) {
   const quarterOpen = [19, 20, 21, 22, 23, 24].filter((q) => !T.v.mine[q]);
   if (r >= 20 && quarterOpen.length === 1 && T.rem.some((d) => r - d === quarterOpen[0]))
     return 'You may not end your move holding all six points of your starting quarter (1–6)';
+  const motherOpen = [6, 7, 8, 9, 10, 11].filter((q) => !T.v.mine[q]);
+  if (T.v.opp[24] && motherOpen.length === 1 && T.rem.some((d) => r - d === motherOpen[0]))
+    return 'You may not end your move holding the six points right in front of the computer\'s starting point (14–19) while it still has checkers there';
   if (T.mustOpen) return `${mustOpenText(T)} — that checker cannot help with these dice`;
   return 'That checker has no legal move with these dice';
 }
@@ -2670,7 +2682,85 @@ async function chooseTheme(id) {
   }
   if (card) renderSettings();
 }
-$('settingsBtn').onclick = () => { $('settings').classList.remove('hidden'); favEdit = null; renderSettings(); };
+$('settingsBtn').onclick = () => { $('settings').classList.remove('hidden'); favEdit = null; renderSettings(); fbOpen(); };
+
+// ---------------------------------------------------------------- feedback card (Settings > Feedback)
+// Notes live in this browser (fevga.feedback.v1, never fevga.v1 or the saved games) and leave it
+// only through "Copy all notes". See src/feedback.js for the record shape and the 30-day switch.
+const APP_VERSION = '2.6'; // matches app/package.json; bump with a release
+let fbDb = null, fbKind = null;
+const fbStore = (() => { try { return window.localStorage; } catch { return null; } })() || { getItem() { return null; }, setItem() { throw new Error('no storage'); }, removeItem() {} };
+function fbContext() {
+  if (puzzle && puzzle.lesson) return 'lesson';
+  if (puzzle) return 'puzzle';
+  if (phase === 'replay') return 'replay';
+  if (phase === 'over') return 'over';
+  return 'game';
+}
+function fbMsg(text, err = false) { const m = $('fbMsg'); m.textContent = text; m.classList.toggle('err', err); }
+function fbRender() {
+  const on = cardOn(fbDb);
+  $('fbOff').hidden = on; $('fbForm').hidden = !on;
+  const n = fbDb.records.length;
+  $('fbCount').textContent = n ? `${n} saved note${n === 1 ? '' : 's'} in this browser` : 'No saved notes yet';
+  $('fbExport').disabled = !n; $('fbClear').hidden = !n;
+  for (const b of $('fbKinds').querySelectorAll('.fb-chip')) b.classList.toggle('on', b.dataset.kind === fbKind);
+}
+function fbSaveDraft() {
+  const text = $('fbText').value;
+  saveDraft(fbStore, text || $('fbGrade').value || fbKind ? { text, section: $('fbSection').value, grade: $('fbGrade').value, kind: fbKind } : null);
+}
+function fbOpen() {
+  fbDb = loadFeedback(fbStore);
+  try { if (!fbStore.getItem(FB_KEY)) saveFeedback(fbStore, fbDb); } catch { /* the first-use marker is best effort */ }
+  if (!$('fbSection').children.length) {
+    for (const s of FB_SECTIONS) $('fbSection').add(new Option(s, s));
+    for (let g = 1; g <= 10; g++) $('fbGrade').add(new Option(g <= 3 ? `${g} · poor` : g <= 7 ? `${g} · fine` : `${g} · good`, String(g)));
+    for (const k of FB_KINDS) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'fb-chip'; b.dataset.kind = k; b.textContent = k;
+      b.onclick = () => { fbKind = fbKind === k ? null : k; fbRender(); fbSaveDraft(); };
+      $('fbKinds').appendChild(b);
+    }
+  }
+  const d = loadDraft(fbStore);
+  $('fbSection').value = d && FB_SECTIONS.includes(d.section) ? d.section : sectionFor(fbContext());
+  $('fbGrade').value = d && d.grade ? d.grade : '';
+  $('fbText').value = d && typeof d.text === 'string' ? d.text.slice(0, FB_MAX_COMMENT) : '';
+  fbKind = d && FB_KINDS.includes(d.kind) ? d.kind : null;
+  $('fbOut').hidden = true; fbMsg('');
+  fbRender();
+}
+for (const id of ['fbText', 'fbSection', 'fbGrade']) $(id).addEventListener('input', fbSaveDraft);
+$('fbSend').onclick = () => {
+  const made = makeRecord(
+    { comment: $('fbText').value, grade: $('fbGrade').value, kind: fbKind, section: $('fbSection').value, cid: $('fbText').dataset.cid || '' },
+    Date.now(),
+    { v: APP_VERSION, level, color: seatColor, themeId, ctx: fbContext(), app: IS_APP, width: window.innerWidth },
+  );
+  if (made.error) { fbMsg(made.error, true); return; }
+  $('fbText').dataset.cid = made.rec.cid; // a retry after a failed save is the same note, not a second one
+  const r = addRecord(fbStore, fbDb, made.rec);
+  if (r.error) { fbMsg(r.error, true); return; } // the text stays in the box
+  delete $('fbText').dataset.cid;
+  $('fbText').value = ''; $('fbGrade').value = ''; fbKind = null; saveDraft(fbStore, null);
+  fbMsg('Saved. It stays in this browser until you copy it.'); fbRender();
+};
+$('fbExport').onclick = async () => {
+  const text = exportText(fbDb), out = $('fbOut');
+  out.value = text; out.hidden = false; out.focus(); out.select();
+  let copied = false;
+  try { await navigator.clipboard.writeText(text); copied = true; } catch { /* the box above is selected: copy by hand */ }
+  fbMsg(copied ? 'Copied. Paste it into a session.' : 'Select the text above and copy it, then paste it into a session.');
+};
+let fbClearArmed = 0;
+$('fbClear').onclick = () => {
+  if (Date.now() - fbClearArmed > 3000) { fbClearArmed = Date.now(); $('fbClear').textContent = 'Sure? tap again'; setTimeout(() => { $('fbClear').textContent = 'Clear saved notes'; }, 3000); return; }
+  fbClearArmed = 0; $('fbClear').textContent = 'Clear saved notes';
+  if (clearRecords(fbStore, fbDb)) { $('fbOut').hidden = true; fbMsg('Cleared.'); } else fbMsg('This browser would not clear them.', true);
+  fbRender();
+};
+$('fbRestart').onclick = () => { restartCard(fbStore, fbDb); fbRender(); };
 
 // ---------------------------------------------------------------- favourite setups
 // A favourite is a named snapshot of the whole setup: level, colour, lighting (dimmer + lamp),

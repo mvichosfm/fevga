@@ -59,7 +59,8 @@ No accounts, no ads, no tracking, no network calls: the game is a static page an
 - **Runner rule:** until your first checker has passed the opponent's starting point, only that checker
   may move.
 - Six or more points in a row are allowed anywhere except your own starting quarter: you may never hold
-  all six points of it at once.
+  all six points of it at once. Nor may you hold the six points right in front of the opponent's
+  starting point while he still has checkers on it.
 - **Unblocking:** if every opponent checker on the board is stuck on the single point right behind your
   six in a row, your move must open one of those points (playing as many dice as possible comes first).
 - Play both dice if you can (four moves on doubles); if only one can be played, the larger. Bear off

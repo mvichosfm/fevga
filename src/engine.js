@@ -18,6 +18,8 @@
 // - Six (or more) points in a row are allowed anywhere, except:
 // - You may never end a move holding all six points of your own starting quarter (your 19..24);
 //   passing over the last open one mid-move (e.g. one checker playing both dice) is fine.
+// - You may never end a move holding the six points right in front of the opponent's starting
+//   point (your 6..11 = his 18..23) while he still has checkers on it (Manos 2026-10-22).
 // - Unblocking: if at the start of your turn every opponent checker on the board stands on
 //   the single point right behind six of your points in a row, your play must open one of
 //   those six points. Playing the most dice (and the larger die) comes first; if no such
@@ -88,6 +90,18 @@ function quarterFull(v) {
   return true;
 }
 
+// Six in a row starting right in front of the opponent's starting point ("mother") while he still
+// has checkers on it: my 11..6 are his 23..18 (Manos 2026-10-22). Judged where a move ends, like
+// the starting quarter. With his mother empty nobody is behind those points, so it is allowed.
+function motherWall(v) {
+  if (!v.opp[24]) return false;
+  for (let r = 6; r <= 11; r++) if (!v.mine[r]) return false;
+  return true;
+}
+
+// May a play stop in position v?
+const closedEnd = (v) => quarterFull(v) || motherWall(v);
+
 // Unblocking rule. The opponent is trapped when every one of his checkers on the board stands
 // on one point s (his numbering) and I hold the six points right in front of it (his s-1..s-6).
 // Returns that s, or 0. Points are counted along HIS path, which is not contiguous with mine
@@ -108,7 +122,7 @@ const wallOpen = (v, s) => { for (let k = 1; k <= 6; k++) if (!v.mine[S(s - k)])
 
 // Can the remaining dice play exactly `need` more steps and end with the wall in front of s open?
 function canEndOpen(v, rem, need, s) {
-  if (need === 0) return !quarterFull(v) && wallOpen(v, s);
+  if (need === 0) return !closedEnd(v) && wallOpen(v, s);
   for (let i = 0; i < rem.length; i++) {
     const d = rem[i];
     if (rem.indexOf(d) !== i) continue;
@@ -144,7 +158,7 @@ const without = (arr, i) => arr.slice(0, i).concat(arr.slice(i + 1));
 // Most dice that can still be played from v, counting only plays that END with the starting
 // quarter not full (-Infinity if even stopping here is illegal and no die can fix it).
 function maxPlay(v, rem) {
-  let best = quarterFull(v) ? -Infinity : 0;
+  let best = closedEnd(v) ? -Infinity : 0;
   if (!rem.length) return best;
   for (let i = 0; i < rem.length; i++) {
     const d = rem[i];
@@ -273,7 +287,7 @@ export function finalPositions(v, rem, trap = trapPoint(v)) {
       }
     }
     // Every legal stopping position is a candidate; the longest ones are kept below.
-    if (steps.length && !quarterFull(v)) {
+    if (steps.length && !closedEnd(v)) {
       const fk = keyOf(v.mine, v.myOff);
       if (steps.length > maxLen) maxLen = steps.length;
       const prev = leaves.get(fk);

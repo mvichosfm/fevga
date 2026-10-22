@@ -232,6 +232,16 @@
   .vbgbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:10px; border:1px dashed var(--edge); border-radius:10px; font-size:12.5px; color:var(--dim); }
   .vbgbar button { padding:7px 14px; font-size:13px; }
   .vbgbar span { flex:1; min-width:220px; }
+  /* feedback card (Settings): classes are fb-* on purpose, no collision with the game's own names */
+  #fbCard .fb-row { display:flex; align-items:center; gap:8px 10px; flex-wrap:wrap; margin:8px 0; font-size:13px; color:var(--dim); }
+  #fbCard .fb-row select { flex:1 1 150px; min-width:0; max-width:100%; }
+  #fbCard textarea { display:block; width:100%; box-sizing:border-box; font:inherit; font-size:14px; color:var(--ink); background:rgba(255,235,200,.08); border:1px solid var(--edge); border-radius:10px; padding:8px 10px; resize:vertical; }
+  #fbCard .fb-out { font-family:ui-monospace, Consolas, monospace; font-size:11.5px; margin-top:6px; }
+  #fbCard .fb-chip { padding:5px 12px; font-size:12.5px; border-radius:999px; }
+  #fbCard .fb-chip.on { border-color:var(--gold); background:rgba(232,183,90,.16); box-shadow:0 0 0 1px var(--gold) inset; color:var(--ink); }
+  #fbCard .fb-msg { flex:1; min-width:140px; font-size:12.5px; color:var(--dim); }
+  #fbCard .fb-msg.err { color:#ff9c8a; }
+  #fbCard .fb-note { font-size:12.5px; color:var(--dim); padding:10px; border:1px dashed var(--edge); border-radius:10px; margin:8px 0; }
   #replayBar { position:fixed; left:50%; transform:translateX(-50%); bottom:max(16px, env(safe-area-inset-bottom)); width:min(680px, calc(100vw - 24px));
     padding:10px 14px; display:flex; flex-direction:column; gap:6px; z-index:3; }
   #replayBar .rtop { display:flex; justify-content:space-between; gap:10px; font-size:13px; color:var(--dim); }
@@ -619,7 +629,8 @@
     <ul>
       <li><b>No hitting.</b> A single checker owns its point: nobody may land on a point the opponent occupies.</li>
       <li><b>The runner.</b> Until your first checker has passed the computer's starting point, you may move only that checker.</li>
-      <li><b>Six in a row is allowed</b> anywhere except your starting quarter (below).</li>
+      <li><b>Six in a row is allowed</b> anywhere except your starting quarter and right in front of the opponent's starting point (below).</li>
+      <li><b>No six in front of the opponent's start.</b> While your opponent still has checkers on his starting point, you may never end a move holding the six points right in front of it (for you: 14–19, in front of the computer's 13). Once his starting point is empty, nobody is behind them and the six is allowed.</li>
       <li><b>Unblocking.</b> If every one of your opponent's checkers on the board is stuck on the single point right behind your six in a row, your move must open one of those six points so they get a chance to move. (Playing as many dice as you can still comes first.)</li>
       <li><b>Keep your starting quarter open.</b> You may never end a move holding all six points of your starting quarter (your points 1–6). One checker may pass over the last open point on its way (1→3→5 with two 2s is fine).</li>
       <li>Play both dice when you can; if only one can be played, it must be the larger.</li>
@@ -731,6 +742,31 @@
     <label class="opt"><input type="checkbox" id="optOdds"> Show winning chances — your chance and the computer's, estimated from computer play-outs of the board as it stands (updated each turn)</label>
     <label class="opt"><input type="checkbox" id="optSound"> Sound effects</label>
     <label class="opt"><input type="checkbox" id="optFreeCam"> Free view — drag to turn the board, scroll to zoom (off: the board stays where it is; also the 🔒 button or V)</label>
+    <div id="fbCard">
+      <h3>Feedback <span class="cnt">kept in this browser only; export it and paste it into a session</span></h3>
+      <div id="fbOff" class="fb-note" hidden>The feedback card switched itself off after 30 days without a note.
+        <button id="fbRestart">Turn it back on</button></div>
+      <div id="fbForm">
+        <div class="fb-row">
+          <label for="fbSection">About</label>
+          <select id="fbSection"></select>
+          <label for="fbGrade">Grade</label>
+          <select id="fbGrade"><option value="">no grade</option></select>
+        </div>
+        <div class="fb-row" id="fbKinds" role="group" aria-label="Kind of note"></div>
+        <textarea id="fbText" rows="3" maxlength="2000" placeholder="What would you change, or what works well? (a comment is required; the grade is optional)"></textarea>
+        <div class="fb-row">
+          <button id="fbSend" class="primary">Save note</button>
+          <span id="fbMsg" class="fb-msg" role="status"></span>
+        </div>
+      </div>
+      <div class="fb-row" id="fbTools">
+        <button id="fbExport">Copy all notes</button>
+        <button id="fbClear" hidden>Clear saved notes</button>
+        <span id="fbCount" class="fb-msg"></span>
+      </div>
+      <textarea id="fbOut" class="fb-out" rows="4" readonly hidden aria-label="Exported notes"></textarea>
+    </div>
     <div class="row">
       <button id="settingsView">Reset camera</button>
       <button id="closeSettings" class="primary">Done</button>

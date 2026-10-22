@@ -23,6 +23,8 @@
 //  - Bear off once all 15 are home (or off): exact die, or a higher die from the highest point.
 //  - Never end a move holding all six points of your own starting quarter (house: judged at the
 //    END of the play; passing over the last open point mid-play is fine).
+//  - Never end a move holding the six points right after the opponent's start while he still has
+//    checkers there (Manos 2026-10-22; judged at the end of the play like the quarter).
 //  - Six in a row elsewhere is allowed (house), but if every opposing checker on the board is on
 //    the one point right behind six of your points in a row, your play must open one of them
 //    when a play with the most dice (and larger die) can (house: otherwise the duty lapses).
@@ -33,7 +35,7 @@ const E = await import(process.env.FEVGA_ENGINE ? new URL('file:///' + process.e
 const { newGame, viewOf, expandDice, finalPositions, createTurn, turnSteps, turnPlay, turnDone, winner, chooseMove } = E;
 
 // how often each rare rule actually changed the answer (so "0 failed" means "tested", not "never hit")
-const bound = { largerDie: 0, unblock: 0, unblockLapsed: 0, quarter: 0, runnerOnly: 0, higherDieOff: 0, noMove: 0, partial: 0 };
+const bound = { largerDie: 0, unblock: 0, unblockLapsed: 0, quarter: 0, mother: 0, runnerOnly: 0, higherDieOff: 0, noMove: 0, partial: 0 };
 
 let fails = 0, passes = 0;
 const failMsgs = new Map();
@@ -84,6 +86,13 @@ function applyRef(st, p, i, j) {
   return n;
 }
 const quarterFullRef = (st, p) => { for (let i = 0; i < 6; i++) if (!st.c[p][i]) return false; return true; };
+// p holds the six points right after the opponent's start while he still has checkers there
+function motherWallRef(st, p) {
+  const q = 1 - p;
+  if (!st.c[q][0]) return false;
+  for (let m = 1; m <= 6; m++) if (!holds(st, p, pathAbs(q, m))) return false;
+  return true;
+}
 
 // the unblocking duty at the start of p's turn: the six abs points p must open one of, or null
 function trapAbs(st, p) {
@@ -100,10 +109,11 @@ function trapAbs(st, p) {
 function refPlays(st0, p, dice) {
   const orders = dice[0] === dice[1] ? [[dice[0], dice[0], dice[0], dice[0]]] : [[dice[0], dice[1]], [dice[1], dice[0]]];
   const ends = new Map(); // key -> {st, n, dies:Set}
-  let quarterBlocked = false;
+  let quarterBlocked = false, motherBlocked = false;
   flags.runner = flags.higher = false;
   const visit = (st, order, n, first) => {
     if (quarterFullRef(st, p)) quarterBlocked = true;
+    else if (motherWallRef(st, p)) motherBlocked = true;
     else {
       const k = keyRef(st, p);
       const e = ends.get(k) || { st, n, dies: new Set() };
@@ -140,6 +150,7 @@ function refPlays(st0, p, dice) {
   if (max === 0) bound.noMove++;
   else if (max < (dice[0] === dice[1] ? 4 : 2)) bound.partial++;
   if (quarterBlocked) bound.quarter++;
+  if (motherBlocked) bound.mother++;
   if (flags.runner) bound.runnerOnly++;
   if (flags.higher) bound.higherDieOff++;
   return { max, keys: new Set(plays.map(([k]) => k)) };
@@ -254,7 +265,7 @@ function valid(st) {
 // a state the game can actually reach before p moves: p's start quarter is not full (the previous
 // play could not end that way), and a side that has not passed has one runner at most
 function reachableFor(st, p) {
-  if (quarterFullRef(st, p)) return false;
+  if (quarterFullRef(st, p) || motherWallRef(st, p)) return false;
   for (let q = 0; q < 2; q++) if (!hasPassed(st, q)) {
     let away = 0;
     for (let j = 1; j <= 12; j++) away += st.c[q][j];
@@ -311,6 +322,29 @@ function trapState(p) {
       st.c[p][i]++; left--;
     }
     if (valid(st) && reachableFor(st, p) && trapAbs(st, p)) return st;
+  }
+  return null;
+}
+
+// the opponent still on his start, p holding four or five of the six points right after it and
+// spare checkers behind them, so many rolls can (illegally) complete the six
+function motherState(p) {
+  const q = 1 - p;
+  for (let tries = 0; tries < 500; tries++) {
+    const st = { c: [new Int8Array(24), new Int8Array(24)], off: [0, 0] };
+    let qLeft = 15;
+    st.c[q][0] = 1 + ri(14); qLeft -= st.c[q][0];
+    while (qLeft > 0) { st.c[q][13 + ri(11)]++; qLeft--; }
+    const gap = 1 + ri(6), gap2 = rnd() < 0.4 ? 1 + ri(6) : gap;
+    let left = 15;
+    for (let m = 1; m <= 6; m++) if (m !== gap && m !== gap2) { st.c[p][idxOf(p, pathAbs(q, m))]++; left--; }
+    while (left > 0) {
+      const i = rnd() < 0.6 ? 7 + ri(11) : ri(24); // mostly just behind or on the wall (p's 13..18)
+      const a = pathAbs(p, i);
+      if (holds(st, q, a) || (pathAbs(q, gap) === a) || (pathAbs(q, gap2) === a)) continue;
+      st.c[p][i]++; left--;
+    }
+    if (valid(st) && reachableFor(st, p)) return st;
   }
   return null;
 }
@@ -492,6 +526,23 @@ function handCases() {
     ok([...r21.keys].every((k) => k.split('|')[0].split(',').map(Number).slice(18).some((x) => x === 0)), 'hand case: 2-1 must open the wall');
   }
 
+  // six in front of the opponent's mother (the 2026-10-22 photo): black holds white's points 1..5
+  // after white's start (black 13..17) with spares on 11; white still has 14 on his start.
+  // A 6-1 can fill white's 6 (black 18): 17->18 + 11->17, or 11->17->18. Every such play is refused.
+  {
+    const isWall = (k) => { const c = k.split('|')[0].split(',').map(Number); return c.slice(13, 19).every((x) => x > 0); };
+    const st = stFrom({ 0: 14, 20: 1 }, { 13: 2, 14: 2, 15: 2, 16: 2, 17: 2, 11: 5 });
+    const r61 = compare(st, B, [6, 1], 'mother wall 6-1');
+    ok(r61.max === 2 && ![...r61.keys].some(isWall), 'hand case: no play may end with six in front of the opponent\'s start');
+    ok(refPlays(st, B, [6, 1]).keys.size > 0 && bound.mother > 0, 'hand case: the mother rule bound');
+    const r11 = compare(st, B, [1, 1], 'mother wall 1-1');
+    ok(r11.max === 4 && ![...r11.keys].some(isWall), 'hand case: 1-1 may pass through 18 but not stop with the six');
+    // the same wall with white's start empty blocks nobody: allowed
+    const st2 = stFrom({ 20: 15 }, { 13: 2, 14: 2, 15: 2, 16: 2, 17: 2, 11: 5 });
+    const e61 = compare(st2, B, [6, 1], 'mother empty 6-1');
+    ok([...e61.keys].some(isWall), 'hand case: with the opponent\'s start empty the six is allowed');
+  }
+
   // scoring
   {
     const g = toGame(stFrom({}, { 20: 15 }, 15, 0));
@@ -549,7 +600,15 @@ for (let k = 0; k < Math.max(40, synth / 20); k++) {
   for (const d of ROLLS) compare(st, p, d, `trap${k}`);
 }
 
-console.log(`hand-worked: ${afterHand} turn checks; self-play: ${gamePositions} positions; synthetic: ${synthN}; trap: ${trapN}`);
+let motherN = 0;
+for (let k = 0; k < Math.max(40, synth / 20); k++) {
+  const p = ri(2), st = motherState(p);
+  if (!st) continue;
+  motherN++;
+  for (const d of ROLLS) compare(st, p, d, `mother${k}`);
+}
+
+console.log(`hand-worked: ${afterHand} turn checks; self-play: ${gamePositions} positions; synthetic: ${synthN}; trap: ${trapN}; mother: ${motherN}`);
 console.log(`${checked} position x roll comparisons, ${passes} passed, ${fails} failed (${((Date.now() - t0) / 1000).toFixed(1)} s)`);
 console.log('rules that changed the answer (turns):', JSON.stringify(bound));
 if (failMsgs.size) console.log('failure kinds:', Object.fromEntries(failMsgs));
