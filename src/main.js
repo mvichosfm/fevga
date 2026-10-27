@@ -5,6 +5,7 @@ import { RoundedBoxGeometry } from '../vendor/RoundedBoxGeometry.js';
 import {
   newGame, cloneGame, createTurn, turnSteps, turnPlay, turnDone, commitTurn, winner,
   absOf, LEVELS, chooseMove, rollDice, applySteps, analyzeView, S, screenTurns, reviewTurn, playKey, describePlay, positionFacts, winChances,
+  viewOf, finalPositions, expandDice,
 } from './engine.js';
 import { PUZZLES } from './puzzles.js';
 import { aoTexture, ringTexture, triGlowTexture, dieTextures, boardShadowTexture } from './textures.js';
@@ -734,7 +735,7 @@ function askReview(type, payload) {
 const sound = new Sound();
 const store = {
   load() { try { return JSON.parse(localStorage.getItem('fevga.v1')) || {}; } catch { return {}; } },
-  save() { try { localStorage.setItem('fevga.v1', JSON.stringify({ level, score, muted: sound.muted, color: seatColor, theme: themeId, numbers: showNumbers, freeCam, autoEnd, quick: quickMove, autoRoll, openingPlay, light: lightLevel, match: matchOn, matchScore, view: savedView, lamp: lampOn, round: showRound, total: showTotal, odds: showOdds, trails: showTrails })); } catch { /* private mode */ } },
+  save() { try { localStorage.setItem('fevga.v1', JSON.stringify({ level, score, muted: sound.muted, color: seatColor, theme: themeId, numbers: showNumbers, freeCam, autoEnd, quick: quickMove, autoRoll, forced: autoForced, openingPlay, light: lightLevel, match: matchOn, matchScore, view: savedView, lamp: lampOn, round: showRound, total: showTotal, odds: showOdds, trails: showTrails })); } catch { /* private mode */ } },
 };
 const saved = store.load();
 let level = saved.level >= 1 && saved.level <= 5 ? saved.level : 3;
@@ -756,6 +757,7 @@ let savedView = Array.isArray(saved.view) && saved.view.length === 3 ? saved.vie
 let autoEnd = saved.autoEnd === true;                          // end the turn without Done (Settings)
 let quickMove = saved.quick === true;                          // a tap plays the higher die at once (Settings)
 let autoRoll = saved.autoRoll === true;                        // throw my dice when the computer has moved (Settings)
+let autoForced = saved.forced !== false;                       // a roll with only one possible play plays itself (Settings, on by default)
 let openingPlay = saved.openingPlay === true;                  // winner plays the opening dice (Settings)
 let lightLevel = saved.light >= 0.25 && saved.light <= 1.6 ? saved.light : 1; // room dimmer
 lampOn = saved.lamp === true;                                   // retro hanging lamp (Settings)
@@ -1015,9 +1017,44 @@ async function startHumanTurn(d) {
     busy = false;
     return endHumanTurn();
   }
+  if (autoForced && !puzzle && !makis) {
+    const plays = finalPositions(viewOf(g, HUMAN), expandDice(curDice), T.mustOpen);
+    if (plays.length === 1) return playForced(plays[0].steps);
+  }
   phase = 'human-move';
   beginHumanStep();
   if (T.mustOpen) toast(mustOpenText(T));
+}
+
+// Settings > Play forced moves for me: every legal play of this roll ends in the same position,
+// so there is nothing to choose. It is played like the computer's move (with the last-move
+// arrows) and the turn ends by itself. Same defence as cpuTurn: a refused step is replaced by a
+// legal one so busy can never stay set.
+async function playForced(steps) {
+  const my = gid, myT = T;
+  phase = 'human-move'; busy = true; legal = []; selected = -1; dests = new Map(); hintPath = null;
+  clearMarks(); updateHud();
+  setStatus(`You rolled ${diceLabel(curDice)} — only one possible move, playing it for you`);
+  await wait(0.6);
+  if (my !== gid || T !== myT) return;
+  trails.clear();
+  const plan = steps.slice();
+  while (!turnDone(T)) {
+    let s = null;
+    const st = plan.shift();
+    if (st) { try { s = turnPlay(T, st); } catch (e) { console.error('forced step refused', st, e); } }
+    if (!s) { const alt = turnSteps(T)[0]; if (!alt) break; s = turnPlay(T, alt); }
+    updateHud();
+    const mv = await moveChecker(HUMAN, s.from, s.to);
+    if (my !== gid || T !== myT) return;
+    if (mv) trails.add(mv.start, mv.target);
+    await wait(0.12);
+  }
+  trails.release(4);
+  await wait(0.5);
+  if (my !== gid || T !== myT || phase !== 'human-move') return;
+  busy = false;
+  endHumanTurn();
 }
 
 async function openingRoll() {
@@ -2681,6 +2718,7 @@ function renderSettings() {
   $('optAutoEnd').checked = autoEnd;
   $('optQuick').checked = quickMove;
   $('optAutoRoll').checked = autoRoll;
+  $('optForced').checked = autoForced;
   $('optOpening').checked = openingPlay;
   $('optMatch').checked = matchOn;
   $('optLamp').checked = lampOn;
@@ -2705,7 +2743,7 @@ $('settingsBtn').onclick = () => { $('settings').classList.remove('hidden'); fav
 // ---------------------------------------------------------------- feedback card (Settings > Feedback)
 // Notes live in this browser (fevga.feedback.v1, never fevga.v1 or the saved games) and leave it
 // only through "Copy all notes". See src/feedback.js for the record shape and the 30-day switch.
-const APP_VERSION = '2.7'; // matches app/package.json; bump with a release
+const APP_VERSION = '2.8'; // matches app/package.json; bump with a release
 let fbDb = null, fbKind = null;
 const fbStore = (() => { try { return window.localStorage; } catch { return null; } })() || { getItem() { return null; }, setItem() { throw new Error('no storage'); }, removeItem() {} };
 function fbContext() {
@@ -2791,13 +2829,13 @@ const storeFavs = () => { try { localStorage.setItem(FAV_KEY, JSON.stringify(fav
 function snapshotSetup() {
   return {
     level, color: seatColor, light: lightLevel, lamp: lampOn, freeCam, view: freeCam ? null : savedView,
-    theme: themeId, numbers: showNumbers, trails: showTrails, round: showRound, total: showTotal, odds: showOdds, muted: sound.muted, autoEnd, quick: quickMove, autoRoll, openingPlay, match: matchOn,
+    theme: themeId, numbers: showNumbers, trails: showTrails, round: showRound, total: showTotal, odds: showOdds, muted: sound.muted, autoEnd, quick: quickMove, autoRoll, forced: autoForced, openingPlay, match: matchOn,
   };
 }
 function favSummary(s) {
   return [themeById(s.theme).name, LEVELS[s.level - 1].name, `plays ${s.color === 1 ? 'black' : 'white'}`,
     `light ${Math.round(s.light * 100)}%${s.lamp ? ' + retro lamp' : ''}`, s.freeCam ? 'free view' : (s.view ? 'view locked (own angle)' : 'view locked'),
-    ...(s.match ? ['match to 5'] : []), ...(s.autoEnd ? ['auto-end turn'] : []), ...(s.quick ? ['quick move'] : []), ...(s.autoRoll ? ['auto-roll'] : []),...(s.openingPlay ? ['plays opening dice'] : []),
+    ...(s.match ? ['match to 5'] : []), ...(s.autoEnd ? ['auto-end turn'] : []), ...(s.quick ? ['quick move'] : []), ...(s.autoRoll ? ['auto-roll'] : []), ...(s.forced === false ? ['forced moves by hand'] : []),...(s.openingPlay ? ['plays opening dice'] : []),
     ...(s.numbers ? [] : ['no point numbers']), ...(s.trails === false ? ['no last-move markers'] : []), ...(s.round ? ['round counter'] : []), ...(s.total ? ['dice sum'] : []), ...(s.odds ? ['winning chances'] : []), ...(s.muted ? ['sound off'] : [])].join(' · ');
 }
 
@@ -2808,7 +2846,7 @@ async function applyFavourite(f) {
   showRound = !!s.round; showTotal = !!s.total; showOdds = !!s.odds; updateOdds();
   showTrails = s.trails !== false; trails.setEnabled(showTrails);
   sound.setMuted(!!s.muted); $('muteBtn').textContent = sound.muted ? '🔇' : '🔊';
-  autoEnd = !!s.autoEnd; quickMove = !!s.quick; autoRoll = !!s.autoRoll; openingPlay = !!s.openingPlay;
+  autoEnd = !!s.autoEnd; quickMove = !!s.quick; autoRoll = !!s.autoRoll; autoForced = s.forced !== false; openingPlay = !!s.openingPlay;
   if (!!s.match !== matchOn) { matchOn = !!s.match; matchScore = [0, 0]; } // same rule as the switch
   lightLevel = s.light; lampOn = !!s.lamp; applyLamp(); setLight(s.light, false);
   level = s.level; sel.value = level;
@@ -2960,6 +2998,7 @@ $('optQuick').onchange = (e) => {
   if (phase === 'human-move' && !busy && selected >= 0) select(-1); // drop a half-made selection
 };
 $('optAutoRoll').onchange = (e) => { autoRoll = e.target.checked; store.save(); };
+$('optForced').onchange = (e) => { autoForced = e.target.checked; store.save(); };
 
 // View lock (on-screen 🔒/🔓 button, Settings > Free camera, V key). Locking freezes the board
 // exactly where it is now - it no longer snaps home - and that view is remembered across

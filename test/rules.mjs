@@ -382,7 +382,7 @@ ok(absOf(0, 24) === 23 && absOf(1, 24) === 11 && absOf(1, 13) === 0 && absOf(1, 
 // 11b. .vbs settings files: round-trip, clamping of hostile values, refusal of other files
 {
   const { toVbs, parseVbs } = await import('../src/records.js');
-  const setup = { level: 4, color: 1, light: 0.6, lamp: true, freeCam: false, view: [40, 60, 100], theme: 'olive', numbers: false, trails: false, round: true, total: true, odds: true, muted: true, autoEnd: true, quick: true, autoRoll: true, openingPlay: true, match: true };
+  const setup = { level: 4, color: 1, light: 0.6, lamp: true, freeCam: false, view: [40, 60, 100], theme: 'olive', numbers: false, trails: false, round: true, total: true, odds: true, muted: true, autoEnd: true, quick: true, autoRoll: true, forced: false, openingPlay: true, match: true };
   const back = parseVbs(toVbs(setup, [{ name: 'Night', s: setup }]));
   ok(JSON.stringify(back.setup) === JSON.stringify(setup) && back.favourites.length === 1 && back.favourites[0].name === 'Night', '.vbs round-trips');
   const evil = parseVbs(JSON.stringify({ format: 'fevga-vbs', version: 1, setup: { level: 99, color: 'x', light: 1e9, view: [1e9, 0, 0], theme: { a: 1 }, lamp: 'yes', extra: '<script>' }, favourites: [{ name: 42, s: null }, 'junk'] }));
@@ -392,6 +392,7 @@ ok(absOf(0, 24) === 23 && absOf(1, 24) === 11 && absOf(1, 13) === 0 && absOf(1, 
   ok(evil.setup.trails === true && parseVbs(JSON.stringify({ format: 'fevga-vbs', version: 1, setup: { trails: false } })).setup.trails === false, 'last-move markers are on unless exactly false (older files lack the field)');
   ok(evil.setup.quick === false, 'quick move is off unless exactly true (older files lack it)');
   ok(evil.setup.autoRoll === false, 'auto-roll is off unless exactly true (older files lack it)');
+  ok(evil.setup.forced === true, 'forced moves play themselves unless exactly false (older files lack it)');
   ok(!!parseVbs('{"format":"fevga-vbg","version":1}').error && !!parseVbs('nope').error, 'non-settings files refused');
 }
 

@@ -133,7 +133,7 @@ export function parseVbg(text) {
 // ---------------------------------------------------------------- .vbs settings files
 // UTF-8 JSON: { format: "fevga-vbs", version: 1, app, exportedAt, setup, favourites: [{ name, s }] }
 // where setup / s = { level, color, light, lamp, freeCam, view, theme, numbers, trails, round, total, odds, muted, autoEnd,
-// quick, autoRoll, openingPlay, match }. (.vbs was Manos's choice; it is also the Windows VBScript extension, so
+// quick, autoRoll, forced, openingPlay, match } (forced defaults to true: older files lack it). (.vbs was Manos's choice; it is also the Windows VBScript extension, so
 // mail filters may block it - the content is plain JSON and never executed by the game.)
 // Imports are untrusted: every field is type-checked and clamped; unknown fields are dropped.
 export const VBS_FORMAT = 'fevga-vbs', VBS_VERSION = 1, VBS_MAX_BYTES = 64 * 1024;
@@ -157,7 +157,7 @@ export function cleanSetup(s) {
     light: Number.isFinite(s.light) ? Math.min(1.6, Math.max(0.25, s.light)) : 1,
     lamp: b(s.lamp), freeCam: b(s.freeCam), view: b(s.freeCam) ? null : view,
     theme: typeof s.theme === 'string' ? s.theme.slice(0, 40) : 'walnut',
-    numbers: s.numbers !== false, trails: s.trails !== false, round: b(s.round), total: b(s.total), odds: b(s.odds), muted: b(s.muted), autoEnd: b(s.autoEnd), quick: b(s.quick), autoRoll: b(s.autoRoll), openingPlay: b(s.openingPlay), match: b(s.match),
+    numbers: s.numbers !== false, trails: s.trails !== false, round: b(s.round), total: b(s.total), odds: b(s.odds), muted: b(s.muted), autoEnd: b(s.autoEnd), quick: b(s.quick), autoRoll: b(s.autoRoll), forced: s.forced !== false, openingPlay: b(s.openingPlay), match: b(s.match),
   };
 }
 
