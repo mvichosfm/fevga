@@ -129,6 +129,42 @@ ok(absOf(0, 24) === 23 && absOf(1, 24) === 11 && absOf(1, 13) === 0 && absOf(1, 
   }
 }
 
+// 4e. No six in front of the opponent's mother while he still has checkers on it (2026-10-22).
+{
+  // white holds 7..11 and has two checkers on 13: a 7 (4-3, 6-1, 5-2) would bring one to 6 and
+  // complete 6..11, the six points right after black's start (black's 24 = white's 12)
+  const white = { 24: 8, 13: 2, 11: 1, 10: 1, 9: 1, 8: 1, 7: 1 };
+  const wall = (mine) => [6, 7, 8, 9, 10, 11].every((r) => mine[r]);
+  for (const black of [{ 24: 15 }, { 24: 1, 13: 14 }]) {
+    const g4e = game(white, black);
+    const who = `black ${black[24]} on its start`;
+    for (const dice of [[4, 3], [6, 1], [5, 2], [1, 1]]) {
+      const finals = finalPositions(viewOf(g4e, 0), expandDice(dice));
+      ok(finals.length > 0 && !finals.some((f) => wall(f.mine)), `${who}, ${dice}: no enumerated play holds 6..11 (${finals.length} plays)`);
+      const ends = new Set(); let bad = 0, plays = 0;
+      const walk = (steps) => {
+        const t = createTurn(g4e, 0, dice);
+        for (const s of steps) turnPlay(t, s);
+        if (turnDone(t)) { plays++; if (wall(t.v.mine)) bad++; ends.add(t.v.mine.join()); return; }
+        const nxt = turnSteps(t);
+        if (!nxt.length) bad++;
+        for (const s of nxt) walk([...steps, s]);
+      };
+      walk([]);
+      ok(plays > 0 && !bad, `${who}, ${dice}: no clicked play ends holding 6..11 or stuck (${plays} plays, ${bad} bad)`);
+      ok(ends.size === finals.length && finals.every((f) => ends.has(f.mine.join())), `${who}, ${dice}: interactive plays = enumerated plays (${ends.size} vs ${finals.length})`);
+      const cm = chooseMove(g4e, 0, dice, 5, () => 0.3);
+      ok(!wall(applySteps(cloneGame(g4e), 0, cm).pos[0]), `${who}, ${dice}: the Expert does not build it either`);
+    }
+  }
+  // his start empty: nobody can be behind those points, so the six is allowed
+  const gOpen = game(white, { 13: 15 });
+  for (const dice of [[4, 3], [6, 1], [5, 2]]) {
+    const finals = finalPositions(viewOf(gOpen, 0), expandDice(dice));
+    ok(finals.some((f) => wall(f.mine)), `black's start empty, ${dice}: a play holding 6..11 is allowed`);
+  }
+}
+
 // 4d. One checker may pass over the last open point of the starting quarter (Manos 2026-10-02):
 // holding shown 1, 2, 4, 5, 6 (= 24, 23, 21, 20, 19), 1>3>5 with two 2s ends with 3 still open.
 {
@@ -381,7 +417,7 @@ ok(absOf(0, 24) === 23 && absOf(1, 24) === 11 && absOf(1, 13) === 0 && absOf(1, 
 
 // 11b. .vbs settings files: round-trip, clamping of hostile values, refusal of other files
 {
-  const { toVbs, parseVbs } = await import('../src/records.js');
+  const { toVbs, parseVbs, vbsFileName } = await import('../src/records.js');
   const setup = { level: 4, color: 1, light: 0.6, lamp: true, freeCam: false, view: [40, 60, 100], theme: 'olive', numbers: false, trails: false, round: true, total: true, odds: true, muted: true, autoEnd: true, quick: true, autoRoll: true, forced: false, openingPlay: true, match: true };
   const back = parseVbs(toVbs(setup, [{ name: 'Night', s: setup }]));
   ok(JSON.stringify(back.setup) === JSON.stringify(setup) && back.favourites.length === 1 && back.favourites[0].name === 'Night', '.vbs round-trips');
@@ -394,6 +430,7 @@ ok(absOf(0, 24) === 23 && absOf(1, 24) === 11 && absOf(1, 13) === 0 && absOf(1, 
   ok(evil.setup.autoRoll === false, 'auto-roll is off unless exactly true (older files lack it)');
   ok(evil.setup.forced === true, 'forced moves play themselves unless exactly false (older files lack it)');
   ok(!!parseVbs('{"format":"fevga-vbg","version":1}').error && !!parseVbs('nope').error, 'non-settings files refused');
+  ok(vbsFileName(new Date(2026, 10, 15, 0, 30)) === 'fevga-settings-2026-11-15.vbs' && vbsFileName(new Date(2031, 0, 5, 23, 30)) === 'fevga-settings-2031-01-05.vbs', 'the settings file is named with the local date');
 }
 
 // 12. records: resigned games read as conceded
@@ -401,6 +438,32 @@ ok(absOf(0, 24) === 23 && absOf(1, 24) === 11 && absOf(1, 13) === 0 && absOf(1, 
   const { resultText } = await import('../src/records.js');
   ok(resultText({ result: { winner: 'cpu', points: 2, resigned: true } }) === 'you admitted the loss, computer +2', 'resigned result text');
   ok(resultText({ result: { winner: 'cpu', points: 1, resigned: true } }) === 'you admitted the loss, computer +1', 'single resigned result text');
+}
+
+// 13. records: a second tab of the same site. Each tab holds its own copy of the two lists and
+// writes it back whole, so a tab left open must re-read them when another tab has written.
+{
+  const { loadGames, storeGames, upsertRecent, saveNamed, watchGames } = await import('../src/records.js');
+  const had = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const mem = new Map();
+  Object.defineProperty(globalThis, 'localStorage', { value: { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => { mem.set(k, String(v)); } }, configurable: true, writable: true });
+  const rec = (id) => ({ id, date: 1, level: 3, human: 0, opening: null, openingPlay: false, turns: [], result: null });
+  const tabA = loadGames(), tabB = loadGames();
+  const target = new EventTarget();
+  let seen = 0;
+  watchGames(tabB, () => seen++, target);
+  const fire = (key) => { const e = new Event('storage'); e.key = key; target.dispatchEvent(e); };
+  saveNamed(tabA, rec('gameA'), 'My best win');
+  storeGames(tabA);
+  fire('fevga.strategy.lang');
+  ok(tabB.saved.length === 0 && seen === 0, 'a write to another key leaves the game lists alone');
+  fire('fevga.games.v1');
+  ok(tabB.saved.length === 1 && tabB.saved[0].name === 'My best win' && seen === 1, 'the other tab\'s named save is picked up');
+  upsertRecent(tabB, rec('gameB'));
+  storeGames(tabB);
+  const after = loadGames();
+  ok(after.saved.length === 1 && after.saved[0].name === 'My best win' && after.recent[0].id === 'gameB', 'a later write keeps the other tab\'s named save');
+  if (had) Object.defineProperty(globalThis, 'localStorage', had); else delete globalThis.localStorage;
 }
 
 console.log(`${passes} passed, ${fails} failed`);

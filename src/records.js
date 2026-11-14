@@ -20,6 +20,13 @@ export function storeGames(db) {
   try { localStorage.setItem(KEY, JSON.stringify(db)); return true; } catch { return false; }
 }
 
+// Another tab of the same site writes the same key. A tab left open would otherwise write its
+// old copy back over it, so it re-reads the two lists when the browser reports that write.
+export function refreshGames(db) { const d = loadGames(); db.recent = d.recent; db.saved = d.saved; }
+export function watchGames(db, onChange, target = globalThis) {
+  target.addEventListener('storage', (e) => { if (e.key !== null && e.key !== KEY) return; refreshGames(db); if (onChange) onChange(); });
+}
+
 export const newId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 const copy = (o) => JSON.parse(JSON.stringify(o));
 
@@ -176,7 +183,7 @@ export function parseVbs(text) {
   return { setup, favourites };
 }
 
-export const vbsFileName = () => `fevga-settings-${new Date().toISOString().slice(0, 10)}.vbs`;
+export const vbsFileName = (d = new Date()) => { const p = (n) => String(n).padStart(2, '0'); return `fevga-settings-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}.vbs`; }; // local date, like everything else a person reads
 
 export function fmtDate(ts) {
   const d = new Date(ts), now = new Date();

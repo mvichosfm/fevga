@@ -10,7 +10,7 @@ import {
 import { PUZZLES } from './puzzles.js';
 import { aoTexture, ringTexture, triGlowTexture, dieTextures, boardShadowTexture } from './textures.js';
 import { THEMES, themeById, SURFACES, SURFACE_SIZE, makeSurface } from './themes.js';
-import { loadGames, storeGames, upsertRecent, saveNamed, renameSaved, deleteSaved, newId, stepsText, shown, resultText, fmtDate, MAX_SAVED, toVbg, parseVbg, vbgFileName, VBG_MAX_BYTES, toVbs, parseVbs, vbsFileName, VBS_MAX_BYTES } from './records.js';
+import { loadGames, storeGames, watchGames, upsertRecent, saveNamed, renameSaved, deleteSaved, newId, stepsText, shown, resultText, fmtDate, MAX_SAVED, toVbg, parseVbg, vbgFileName, VBG_MAX_BYTES, toVbs, parseVbs, vbsFileName, VBS_MAX_BYTES } from './records.js';
 import { Sound } from './sound.js';
 import { createTrails, createConfetti } from './effects.js';
 import { FB_KEY, FB_SECTIONS, FB_KINDS, FB_MAX_COMMENT, sectionFor, makeRecord, loadFeedback, saveFeedback, cardOn, restartCard, addRecord, clearRecords, exportText, loadDraft, saveDraft } from './feedback.js';
@@ -493,7 +493,9 @@ function setRest(mesh, v) {
 }
 
 // Puts the 30 checkers where game g says, dropping them in from above.
+let layoutGen = 0; // bumped by every layoutCheckers: a move still in flight then belongs to the board that was replaced
 function layoutCheckers(g, animate) {
+  layoutGen++;
   for (const s of stacks) s.length = 0;
   offStacks[0].length = 0; offStacks[1].length = 0;
   const pool = [allCheckers.filter((c) => c.userData.p === 0), allCheckers.filter((c) => c.userData.p === 1)];
@@ -549,11 +551,13 @@ async function moveChecker(p, from, to) {
   mesh.userData.ao.visible = false;
   mesh.userData.lift = 0;
   sound.click();
+  const gen = layoutGen;
   await animateFn(dur, (k) => {
     const e = easeInOut(k);
     mesh.position.lerpVectors(start, target, e);
     mesh.position.y += arc * 4 * k * (1 - k);
   });
+  if (gen !== layoutGen) { mesh.userData.anim--; return null; } // the board was laid out again while this checker flew (new game, replay or puzzle hand-over): that layout owns its place now
   setRest(mesh, target);
   mesh.position.copy(target);
   mesh.userData.anim--;
@@ -1074,6 +1078,9 @@ async function openingRoll() {
   if (a > b) {
     if (first) {
       setStatus(`You rolled <b>${a}</b>, computer <b>${b}</b> — you start with <b>${a}–${b}</b>`);
+      // the dice are thrown: a second Roll (Space, Enter, a tap on the board) in this pause must
+      // not start another opening throw. startHumanTurn clears busy itself
+      busy = true; updateHud();
       await wait(1.0);
       if (my !== gid) return;
       return startHumanTurn(first);
@@ -1774,6 +1781,7 @@ window.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
   if (!$('games').classList.contains('hidden')) { if (e.key === 'Escape') { editing = null; $('games').classList.add('hidden'); } return; }
   if (!$('settings').classList.contains('hidden') && e.key !== 'Escape') return; // no game keys behind the sheet
+  for (const id of ['rules', 'puzzles']) if (!$(id).classList.contains('hidden')) { if (e.key === 'Escape') $(id).classList.add('hidden'); return; }
   if (phase === 'replay') {
     if (e.key === 'ArrowRight') replayStep();
     else if (e.key === 'ArrowLeft') replayJump(replay.idx - 1);
@@ -2649,6 +2657,7 @@ $('gamesBody').addEventListener('keydown', (e) => {
 });
 $('gamesBtn').onclick = () => { editing = null; renderGames(); $('games').classList.remove('hidden'); };
 $('closeGames').onclick = () => { editing = null; $('games').classList.add('hidden'); };
+watchGames(gamesDb, () => { if (!$('games').classList.contains('hidden') && !editing) renderGames(); });
 $('rpStart').onclick = () => replayJump(0);
 $('rpPrev').onclick = () => replayJump(replay.idx - 1);
 $('rpNext').onclick = () => replayStep();
@@ -2743,7 +2752,7 @@ $('settingsBtn').onclick = () => { $('settings').classList.remove('hidden'); fav
 // ---------------------------------------------------------------- feedback card (Settings > Feedback)
 // Notes live in this browser (fevga.feedback.v1, never fevga.v1 or the saved games) and leave it
 // only through "Copy all notes". See src/feedback.js for the record shape and the 30-day switch.
-const APP_VERSION = '2.8'; // matches app/package.json; bump with a release
+const APP_VERSION = '2.9'; // matches app/package.json; bump with a release
 let fbDb = null, fbKind = null;
 const fbStore = (() => { try { return window.localStorage; } catch { return null; } })() || { getItem() { return null; }, setItem() { throw new Error('no storage'); }, removeItem() {} };
 function fbContext() {
