@@ -43,11 +43,53 @@ export class Sound {
   place() { this.tok(0.75, 540); }
   click() { this.tok(0.3, 1100); }
   nope() { this.tok(0.3, 240); }
-  // bone dice hitting wood
-  dieHit(v = 0.5) { if (this._ok()) { this.tok(v * 0.6, 1500 + Math.random() * 500); this._noise(0.02, v * 0.25, 5000); } }
+  // One filtered burst of noise, `at` seconds from now: instant attack, exponential decay.
+  // Scheduled on the audio clock (not setTimeout), so a run of them keeps its rhythm.
+  _burst(at, dur, vol, type, freq, q = 1) {
+    const c = this.ctx, t = c.currentTime + at;
+    if (!this._nb) { // one second of white noise, shared; every burst reads a random slice of it
+      this._nb = c.createBuffer(1, c.sampleRate, c.sampleRate);
+      const d = this._nb.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    const s = c.createBufferSource(); s.buffer = this._nb;
+    const f = c.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+    const g = c.createGain();
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f).connect(g).connect(this.out);
+    s.start(t, Math.random() * 0.9, dur + 0.02);
+  }
+  // A small hard die on a wooden board. Three parts, as on a real board: the die's own click
+  // (a few milliseconds, bright, no pitch), the board answering with a short hollow knock that
+  // grows with the force of the blow, and - on the last, softest touch - the die rocking to rest
+  // on its edges in a quickening run of ticks.
+  dieHit(v = 0.5) {
+    if (!this._ok()) return;
+    const r = Math.random;
+    this._burst(0, 0.012, v * 1.5, 'bandpass', 3000 + r() * 1800, 1.2);  // the die
+    this._burst(0, 0.005, v * 0.5, 'highpass', 6000);                    // its edge: the "tick"
+    this._burst(0, 0.13 + 0.12 * v, v * v * 3.2,'bandpass', 230 + r() * 110, 2.5); // the board's knock
+    this._burst(0, 0.025, v * 0.5, 'lowpass', 900);                      // wood under the die
+    if (v <= 0.2) {
+      let t = 0.035, gap = 0.05;
+      for (let i = 0; i < 4; i++) {
+        this._burst(t, 0.006, v * 1.1 * Math.pow(0.7, i), 'bandpass', 3800 + r() * 1600, 1.5);
+        t += gap; gap *= 0.68;
+      }
+    }
+  }
+  // two dice knocking against each other in a closed hand: bright clacks at uneven intervals,
+  // a little muffled, over before the dice reach the board (~0.3 s after the throw starts)
   shake() {
     if (!this._ok()) return;
-    for (let i = 0; i < 6; i++) setTimeout(() => this._noise(0.025, 0.12, 3500), i * 45);
+    const r = Math.random, n = 4 + Math.floor(r() * 2);
+    let t = 0;
+    for (let i = 0; i < n && t < 0.27; i++) {
+      const v = 0.2 + r() * 0.2;
+      this._burst(t, 0.009, v * 1.4, 'bandpass', 3400 + r() * 2200, 2);
+      this._burst(t, 0.018, v * 0.35, 'lowpass', 1100);
+      t += 0.035 + r() * 0.045;
+    }
   }
   _tone(freq, at, dur, vol, type = 'sine') {
     const c = this.ctx, t = c.currentTime + at;

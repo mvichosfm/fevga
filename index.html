@@ -229,6 +229,14 @@
   .frow { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px; }
   .frow .cnt, #settings h3 .cnt { font-size:11px; letter-spacing:.04em; text-transform:none; color:var(--dim); font-weight:400; }
   #settings h3 { display:flex; justify-content:space-between; align-items:baseline; gap:10px; }
+  /* Settings categories fold (details / summary); main.js remembers which are open */
+  #settings details.fold { border-top:1px solid var(--edge); }
+  #settings details.fold[open] { padding-bottom:10px; }
+  #settings details.fold > summary { list-style:none; cursor:pointer; display:flex; align-items:center; gap:8px; }
+  #settings details.fold > summary::-webkit-details-marker { display:none; }
+  #settings details.fold > summary::before { content:'▸'; flex:none; width:14px; color:var(--gold); font-size:15px; line-height:1; transition:transform .15s; }
+  #settings details.fold[open] > summary::before { transform:rotate(90deg); }
+  #settings details.fold > summary h3 { flex:1; margin:14px 0; }
   .vbgbar { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:10px; border:1px dashed var(--edge); border-radius:10px; font-size:12.5px; color:var(--dim); }
   .vbgbar button { padding:7px 14px; font-size:13px; }
   .vbgbar span { flex:1; min-width:220px; }
@@ -719,7 +727,7 @@
 <div id="settings" class="modal hidden">
   <div class="sheet panel">
     <h2 class="serif">Settings</h2>
-    <h3>Favourites <span class="cnt">level, colour, lighting, view and every setting below, in one click</span></h3>
+    <details class="fold" data-fold="favs"><summary><h3>Favourites <span class="cnt">level, colour, lighting, view and every setting below, in one click</span></h3></summary>
     <div id="favList"></div>
     <div class="vbgbar">
       <button id="vbsExport" class="web-only" title="Download your setup and favourites as a .vbs file">Export settings (.vbs)</button>
@@ -729,16 +737,16 @@
     <div id="vbsAsk" class="grow" hidden><span id="vbsAskText" class="warn"></span>
       <div class="ga"><button id="vbsYes" class="primary">Apply</button><button id="vbsNo">Cancel</button></div></div>
     <input type="file" id="vbsInput" accept=".vbs" hidden>
-    <h3>Board style</h3>
+    </details><details class="fold" data-fold="board"><summary><h3>Board style</h3></summary>
     <div id="themeGrid"></div>
-    <h3>Play</h3>
+    </details><details class="fold" data-fold="play"><summary><h3>Play</h3></summary>
     <label class="opt"><input type="checkbox" id="optAutoEnd"> End my turn automatically after my last move (no Done / Enter)</label>
     <label class="opt"><input type="checkbox" id="optQuick"> Quick move: tapping a checker plays it at once with the higher die (the smaller one if the higher cannot be played); the next checker you tap gets the other die</label>
     <label class="opt"><input type="checkbox" id="optForced"> Play forced moves for me: when a roll leaves only one possible move, it is played at once (with the last-move arrows) and the turn ends</label>
     <label class="opt"><input type="checkbox" id="optAutoRoll"> Roll my dice automatically when the computer has finished its move</label>
     <label class="opt"><input type="checkbox" id="optMatch"> Play a match to 5 points (mars counts 2) — off: single games with a running score</label>
     <label class="opt"><input type="checkbox" id="optOpening"> Opening throw: the winner plays the two opening dice as the first move (off: the winner rolls again)</label>
-    <h3>Display &amp; sound</h3>
+    </details><details class="fold" data-fold="display"><summary><h3>Display &amp; sound</h3></summary>
     <label class="opt"><input type="checkbox" id="optLamp"> Retro lamp light — a warm pool of light from a lamp hanging over the board; the room around it goes dark</label>
     <label class="opt"><input type="checkbox" id="optNumbers"> Point numbers on the rails</label>
     <label class="opt"><input type="checkbox" id="optTrails"> Show the computer's last move — glowing arcs and rings from where its checkers left to where they landed, for a few seconds</label>
@@ -746,9 +754,9 @@
     <label class="opt"><input type="checkbox" id="optTotal"> Show the sum of the two dice in the move message — a 6–5 reads "(sum 11)"</label>
     <label class="opt"><input type="checkbox" id="optOdds"> Show winning chances — your chance and the computer's, estimated from computer play-outs of the board as it stands (updated each turn)</label>
     <label class="opt"><input type="checkbox" id="optSound"> Sound effects</label>
-    <label class="opt"><input type="checkbox" id="optFreeCam"> Free view — drag to turn the board, scroll to zoom (off: the board stays where it is; also the 🔒 button or V)</label>
+    <label class="opt"><input type="checkbox" id="optFreeCam"> Free view — drag to turn the board, scroll to zoom (off: the board stays where it is; also the 🔒 button or V)</label></details>
     <div id="fbCard">
-      <h3>Feedback <span class="cnt">kept in this browser only; export it and paste it into a session</span></h3>
+      <details class="fold" data-fold="feedback"><summary><h3>Feedback <span class="cnt">kept in this browser only; export it and paste it into a session</span></h3></summary>
       <div id="fbOff" class="fb-note" hidden>The feedback card switched itself off after 30 days without a note.
         <button id="fbRestart">Turn it back on</button></div>
       <div id="fbForm">
@@ -770,7 +778,7 @@
         <button id="fbClear" hidden>Clear saved notes</button>
         <span id="fbCount" class="fb-msg"></span>
       </div>
-      <textarea id="fbOut" class="fb-out" rows="4" readonly hidden aria-label="Exported notes"></textarea>
+      <textarea id="fbOut" class="fb-out" rows="4" readonly hidden aria-label="Exported notes"></textarea></details>
     </div>
     <div class="row">
       <button id="settingsView">Reset camera</button>
