@@ -323,13 +323,18 @@ export function finalPositions(v, rem, trap = trapPoint(v)) {
 export function makeWeights(q) {
   const mob = [0], prime = [0, 0, 0.5, 2, 5, 9, 15].map((x) => x * q.prime);
   for (let k = 1; k <= 6; k++) mob.push(q.mobScale * Math.pow(k, q.mobExp));
-  return { mob, prime, mobCnt: q.mobCnt, off: q.off, stack: q.stack, home: q.home, far: q.far };
+  return {
+    mob, prime, mobCnt: q.mobCnt, off: q.off, stack: q.stack, home: q.home, far: q.far,
+    waste: q.waste || 0, mars: q.mars || 0,
+  };
 }
 export const PARAMS = {
-  basic: { mobScale: 0.4, mobExp: 1.6, mobCnt: 0.15, prime: 0.5, off: 1, stack: 0.2, home: 0.5, far: 0 },
-  full: { mobScale: 0.6, mobExp: 1.7, mobCnt: 0.3, prime: 1, off: 1.5, stack: 0.6, home: 0.5, far: 0.2 },
+  basic: { mobScale: 0.4, mobExp: 1.6, mobCnt: 0.15, prime: 0.5, off: 1, stack: 0.2, home: 0.5, far: 0, waste: 0, mars: 0 },
+  full: { mobScale: 0.6, mobExp: 1.7, mobCnt: 0.3, prime: 1, off: 1.5, stack: 0.6, home: 0.5, far: 0.2, waste: 0, mars: 0 },
   // test/tune.mjs, 2026-10-01: 3 sweeps x 2000 greedy self-play games; 60.0% of points vs `full`
-  tuned: { mobScale: 0.6, mobExp: 1.7, mobCnt: 1.0125, prime: 1.5, off: 1.5, stack: 0.6, home: 0.5, far: 0.2 },
+  // waste / mars (2026-11-21) are off: measured 47-49% (waste 0.5-2) and no change at all (mars
+  // 30-90) against this build - see CLAUDE.md "Computer levels" before switching them on.
+  tuned: { mobScale: 0.6, mobExp: 1.7, mobCnt: 1.0125, prime: 1.5, off: 1.5, stack: 0.6, home: 0.5, far: 0.2, waste: 0, mars: 0 },
 };
 export const WEIGHTS = { basic: makeWeights(PARAMS.basic), full: makeWeights(PARAMS.full), tuned: makeWeights(PARAMS.tuned) };
 
@@ -358,8 +363,26 @@ function sideTerms(A, B, W) {
   }
   let stack = 0;
   for (let r = 7; r <= 23; r++) if (A[r] > 3) stack += A[r] - 3;
-  return { mob, prime, stack };
+  // Bear-off inefficiency: pips that the home board will waste. A point holding more than three
+  // checkers cannot be cleared smoothly, a gap between checkers forces high rolls to be thrown
+  // away, and checkers left on the 1 and 2 points only move on exact rolls. Scaled by W.waste.
+  let waste = 0;
+  if (A[1] || A[2] || A[3] || A[4] || A[5] || A[6]) {
+    let filled = 0;
+    for (let r = 1; r <= 6; r++) {
+      const c = A[r];
+      if (c > 3) waste += (c - 3) * 0.6;
+      if (c) filled++;
+      else if (filled) waste += 0.8;          // a hole behind a filled point
+    }
+    waste += A[1] * 0.5 + A[2] * 0.4;
+  }
+  return { mob, prime, stack, waste };
 }
+
+// Chance that a side with this pip lead, whose opponent has borne off nothing, still mars him.
+// Flat by design: a mars needs a large lead, not just a small one.
+const marsChance = (lead) => 1 / (1 + Math.exp(-(lead - 50) / 15));
 
 export function evaluate(v, W = WEIGHTS.full) {
   if (v.myOff === 15) return WIN * (v.oppOff === 0 ? 2 : 1);
@@ -368,8 +391,17 @@ export function evaluate(v, W = WEIGHTS.full) {
   for (let r = 1; r <= 24; r++) { my += r * v.mine[r]; op += r * v.opp[r]; }
   const a = sideTerms(v.mine, v.opp, W);
   const b = sideTerms(v.opp, v.mine, W);
+  // Mars (double game) is worth a whole extra point, so a side that can still mars must play for
+  // it; a side that can be marred must avoid it. Zero on both counts until someone bears off.
+  let mars = 0;
+  if (W.mars) {
+    const lead = op - my;
+    if (v.oppOff === 0 && v.myOff > 0) mars += marsChance(lead);
+    if (v.myOff === 0 && v.oppOff > 0) mars -= marsChance(-lead);
+  }
   return (op - my) + W.off * (v.myOff - v.oppOff)
-    + (b.mob - a.mob) + (a.prime - b.prime) - W.stack * (a.stack - b.stack);
+    + (b.mob - a.mob) + (a.prime - b.prime) - W.stack * (a.stack - b.stack)
+    - W.waste * (a.waste - b.waste) + W.mars * mars;
 }
 
 // ------------------------------------------------------------------ computer player
@@ -385,7 +417,7 @@ export const LEVELS = [
 // score, random = chance of a random move, topN = two-ply search over the N best candidates.
 const LEVEL_CONFIG = {
   2: { W: WEIGHTS.basic, noise: 5, random: 0.12 },
-  3: { W: WEIGHTS.full, noise: 1.5 },
+  3: { W: WEIGHTS.full, noise: 0 },
   4: { W: WEIGHTS.tuned, noise: 0 },
   5: { W: WEIGHTS.tuned, noise: 0, topN: 10 },
 };

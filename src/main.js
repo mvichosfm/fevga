@@ -2771,7 +2771,7 @@ $('settingsBtn').onclick = () => { $('settings').classList.remove('hidden'); fav
 // ---------------------------------------------------------------- feedback card (Settings > Feedback)
 // Notes live in this browser (fevga.feedback.v1, never fevga.v1 or the saved games) and leave it
 // only through "Copy all notes". See src/feedback.js for the record shape and the 30-day switch.
-const APP_VERSION = '2.10'; // matches app/package.json; bump with a release
+const APP_VERSION = '2.11'; // matches app/package.json; bump with a release
 let fbDb = null, fbKind = null;
 const fbStore = (() => { try { return window.localStorage; } catch { return null; } })() || { getItem() { return null; }, setItem() { throw new Error('no storage'); }, removeItem() {} };
 function fbContext() {
